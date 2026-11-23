@@ -26,7 +26,8 @@
 | Tasks 1–2, complete | Taxonomy at `2251d96`, scoring and chips at `792396a` | Keep these commits as the tested baseline. |
 | Task 3, complete | Catalog integrity migration, stable seed and 68 local WebP fixtures on `feat/seamlens-v1` | Independently reviewed. All 31 tests and typecheck passed using PGlite and pg-style connection doubles. |
 | Task 4, implemented | Structured vision, regional embeddings and UTC budget reservations | Search and ingestion can use the interfaces. Live fixture acceptance awaits staging credentials. |
-| Tasks 5 and 7 | Task 4 | Search and ingestion have separate owners. Integrate the reviewed change from each before dispatching its dependents. |
+| Task 5, implemented | Image analysis, session refinement, rate limits and hybrid ranking at `0a105e9` and `3bde4dd` | Local 2,000-view PGlite benchmark used HNSW. Over 30 warmed calls per case, p95 was 4.14 ms for full silhouette and 3.12 ms for filtered bodice. Staging timing belongs to Task 10. |
+| Task 7, implemented | Approved Shopify and CSV ingestion, gallery classification, immutable media and draft worker at `cd3ea3d` | Offline integration covered import, curation and public retrieval. The default Supabase bucket is provisioned by migration 004. Deployments with a custom media bucket supply it separately. |
 | Tasks 6, 8, 9 and 10 | 5 → 6 → 8 for public discovery. 5 + 7 → 9 for admin. 5 → 10 for benchmark logic. | Run the final browser, build and release checks after both public and admin surfaces are integrated. |
 
 Use the existing feature worktree and `bun.lock`. Run `bun install --frozen-lockfile` on a fresh checkout. Generate each Superpowers task brief from this revision immediately before dispatch and include Global Constraints. Parallel writers on independent tasks use separate worktrees. Give each diff to a reviewer and record the commit and verification in the feature worktree’s progress ledger. The coordinator owns shared migrations and integration order.
@@ -257,7 +258,7 @@ git commit -m "feat(vision): add structured Gemini extractor, batched 768-d embe
   - `executeSessionSearch(db: Queryable, querySessionId: string, focusRegion: FocusRegion, filters: SearchFilters, reranker?: CandidateReranker): Promise<{ querySessionId: string; queryStatus: 'ok' | 'low_visibility_partial' | 'unsupported_category_v1'; extractedProfile: ConstructionProfileV1; warnings: string[]; results: RankedPatternCard[]; relaxationHints: Array<{ facet: keyof SearchFilters; resultCount: number; label: string }> }>`
   - `analyzeAndSearch(deps: AnalyzeDeps, input: AnalyzeInput): Promise<SearchExecutionResult>`
 
-- [ ] **Step 1: Write failing tests for EXIF/HEIC rejection, SSRF redirect blocking, rate limits, and hybrid ranking**
+- [x] **Step 1: Write failing tests for EXIF/HEIC rejection, SSRF redirect blocking, rate limits, and hybrid ranking**
 
 Create `tests/search/image-security-and-ranker.test.ts` covering:
 1. **Review Focus #1:** Rotate-tagged EXIF JPEG (`Orientation = 6`, `800x1200` stored sideways as `1200x800`) normalizes to upright `width < height` WebP with EXIF stripped; fake HEIC (`ftypheic` header) and 0-byte buffers throw `SearchError('UNSUPPORTED_IMAGE_FORMAT', 415)`.
@@ -275,23 +276,23 @@ Create `tests/search/image-security-and-ranker.test.ts` covering:
 7. For a full-silhouette top with identical geometry but both substrate and closure mismatched, assert a structural score of 0.90. The current division by 0.80 inflates those two slots as well. Keep their combined 0.10 and redistribute the missing skirt share only across silhouette, bodice and sleeves (scale their 0.70 total to 0.90).
 8. The URL transport must connect to a validated public address for each hop and preserve HTTPS hostname verification. Bound the entire fetch, streamed byte count and decoded pixels. Use an injected resolver/transport in offline tests and assert the chosen address is the one used to connect. Cover upload size, timeouts and content validation before AI work.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bun run test tests/search/image-security-and-ranker.test.ts`
 Expected: FAIL with missing `@/modules/search/*` modules.
 
-- [ ] **Step 3: Implement `image-ingest.ts`, `rate-limit.ts`, `hybrid-ranker.ts`, and `analyze-service.ts`**
+- [x] **Step 3: Implement `image-ingest.ts`, `rate-limit.ts`, `hybrid-ranker.ts`, and `analyze-service.ts`**
 
 - In `image-ingest.ts`: verify magic bytes (`FF D8 FF` JPEG, `89 50 4E 47` PNG, `RIFF....WEBP` WebP, `....ftypavif` AVIF; explicitly reject `ftypheic`/`ftypheix` and anything else with `415`), apply optional normalized `cropBox` after `sharp(raw).rotate()` (so crop coordinates align with upright display!), resize `fit: 'inside', width: 1280, height: 1280, withoutEnlargement: true`, output `.webp({ quality: 82 })`, compute `sha256`. In `fetchDirectImageUrlSafe`, use `redirect: 'manual'`, validate URL + DNS lookup against private IPv4/IPv6 CIDR ranges on hop 0 and at most 1 redirect hop, stream up to `8 * 1024 * 1024` bytes with `AbortSignal.timeout(3000)`.
 - In `hybrid-ranker.ts`: inside a transaction, `SET LOCAL hnsw.iterative_scan = relaxed_order;`, fetch `query_sessions` row (`expires_at > now()`, else throw `404 SESSION_EXPIRED`), retrieve up to 40 distinct view IDs by region cosine distance, using the approved maker, published pattern and a matching size band (`EXISTS` predicate from Spec §5.4.3), compute `combineHybridScore(vecSim, computeStructuralScore(...))`, collapse by `pattern_id`, return the best 18 distinct patterns with stable tie-breaking, select a band satisfying both measurements, preferring the qualifying default then a stable ID. With both measurements unset, prefer the default across all bands, attach `buildExplanationChips`, and run single-facet relaxation counts when `results.length === 0`.
 - In `analyze-service.ts`: after route-level rate limiting, normalize and check unexpired sessions by normalized image digest and effective crop, on a miss run the budgeted `VisionExtractor` (`mode: 'live_query'`) + `serializeCanonicalRegions` + `TextEmbedder` (`RETRIEVAL_QUERY`), insert `query_sessions` + `search_events`, probabilistically `DELETE FROM query_sessions WHERE expires_at < now()`, and return `executeSessionSearch(...)`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bun run test tests/search/image-security-and-ranker.test.ts tests/taxonomy/scoring-and-chips.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit and submit for task review**
+- [x] **Step 5: Commit and submit for task review**
 
 ```bash
 git add src/modules/search tests/search src/modules/taxonomy/scoring.ts tests/taxonomy/scoring-and-chips.test.ts
@@ -378,7 +379,7 @@ git commit -m "feat(api): add search analyze/query endpoints, tracked /go redire
   - `enqueueIngestionBatch(db: Queryable, params: { makerId: string; sourceType: 'shopify_json' | 'csv_upload'; sourceDescriptor: string; drafts: NormalizedImportDraft[]; createdBy: string }): Promise<{ batchId: string; itemCount: number }>`
   - `processNextIngestionChunk(deps: IngestionWorkerDeps, batchId: string, chunkSize?: number): Promise<{ processed: number; completed: number; failed: number; status: string }>`
 
-- [ ] **Step 1: Write failing tests for Straight/Curve Shopify grouping, metric CSV parsing, permission gate, and idempotent chunk execution**
+- [x] **Step 1: Write failing tests for Straight/Curve Shopify grouping, metric CSV parsing, permission gate, and idempotent chunk execution**
 
 Use `tests/ingestion/parsers-and-worker.test.ts` with an in-memory database, original media, a fake object store and recording AI adapters.
 
@@ -387,12 +388,12 @@ Use `tests/ingestion/parsers-and-worker.test.ts` with an in-memory database, ori
 - Two workers claiming the same batch cannot complete the same item twice. Simulate interruption after media upload and before draft commit, reclaim the expired claim, and verify stable media keys, one set of bands/views and consistent batch totals. Retrying a failed item updates its existing queue entry.
 - A gallery with front, back, cover, an irrelevant image and two described garment views yields the expected role-to-view assignments. Give explicit CSV roles precedence and prefer flats during extraction. Missing required measurements remain in a reviewable item linked to its draft. A fabricated measurement or a forced insert into a non-null bust column fails this test. Retain candidates in the ingestion payload until the curator supplies valid bounds. An item below 0.80 confidence must appear in the review queue.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bun run test tests/ingestion/parsers-and-worker.test.ts`
 Expected: FAIL with missing `@/modules/ingestion/*` modules.
 
-- [ ] **Step 3: Implement `parsers.ts`, `media-pipeline.ts`, and `chunk-worker.ts`**
+- [x] **Step 3: Implement `parsers.ts`, `media-pipeline.ts`, and `chunk-worker.ts`**
 
 - In `parsers.ts`: normalize Shopify titles by stripping trailing Curve/Plus/Extended/Straight size-range suffixes (`/\s*[-–(]*(curve|plus|extended|straight|sizes?\s*\d+[\s–-]+\d+).*$/i`) to form `groupKey`, merging sibling Straight & Curve products into one `NormalizedImportDraft` with distinct `RawSizeBandCandidate` entries; parse CSV rows supporting multi-view (`view_code`) and multi-band (`band_label`) grouping, applying `parseMeasurementInches` (detecting `cm` headers/values automatically).
 - In `media-pipeline.ts`: resize approved cover & flat images via `sharp` into `800px` (`-card.webp`) and `1600px` (`-full.webp`) uploaded to `catalog-media/{maker_slug}/{pattern_slug}/...`.
@@ -400,12 +401,12 @@ Expected: FAIL with missing `@/modules/ingestion/*` modules.
 
 - Commit the claim before external work. Fetch approved catalog sources and gallery media through a bounded HTTPS transport with the same address policy as Task 5. Task 7 can develop against an injected transport in parallel and wire the shared implementation at integration. Use deterministic Storage keys. In a short transaction, verify claim ownership and maker status, then persist the draft, review flags, item stage and counts together. Re-importing a curated or published design must preserve its verified fields and publication state for explicit admin review.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bun run test tests/ingestion/parsers-and-worker.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit and submit for task review**
+- [x] **Step 5: Commit and submit for task review**
 
 ```bash
 git add src/modules/ingestion supabase/migrations/202611220004_ingestion_claims.sql tests/ingestion
