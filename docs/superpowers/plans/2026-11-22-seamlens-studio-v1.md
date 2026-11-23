@@ -19,18 +19,24 @@
 - **Curation Vector Sync:** Every Admin edit to `pattern_views.construction_profile` must synchronously re-run `serializeCanonicalRegions` and `TextEmbedder.embedRegions` before committing so `pgvector` columns never drift from human-curated tags.
 - **Hard Performance & Cost Ceilings:** Cold visual search target `<3.5s` p95 (low-latency live extraction and higher-effort catalog extraction per Task 4); filter/Part-Focus query target `<100 ms`; IP rate limits `10 req/min` and `40 req/hr` on `/api/v1/search/analyze`, `120 req/min` on `/api/v1/search/query`; configurable daily spend circuit breaker defaulting to `$10.00/day` UTC (`DAILY_AI_BUDGET_USD`).
 
-## Where to resume
+## Implementation checklist
 
-| Work | Evidence or prerequisite | Review handoff |
-| --- | --- | --- |
-| Tasks 1–2, complete | Taxonomy at `2251d96`, scoring and chips at `792396a` | Keep these commits as the tested baseline. |
-| Task 3, complete | Catalog integrity migration, stable seed and 68 local WebP fixtures on `feat/seamlens-v1` | Independently reviewed. All 31 tests and typecheck passed using PGlite and pg-style connection doubles. |
-| Task 4, implemented | Structured vision, regional embeddings and UTC budget reservations | Search and ingestion can use the interfaces. Live fixture acceptance awaits staging credentials. |
-| Task 5, implemented | Image analysis, session refinement, rate limits and hybrid ranking at `0a105e9` and `3bde4dd` | Local 2,000-view PGlite benchmark used HNSW. Over 30 warmed calls per case, p95 was 4.14 ms for full silhouette and 3.12 ms for filtered bodice. Staging timing belongs to Task 10. |
-| Task 7, implemented | Approved Shopify and CSV ingestion, gallery classification, immutable media and draft worker at `cd3ea3d` | Offline integration covered import, curation and public retrieval. The default Supabase bucket is provisioned by migration 004. Deployments with a custom media bucket supply it separately. |
-| Task 6, implemented | Public search routes, browser image preparation and tracked redirects at `7e4a180`; crop-origin and session handling at `29c05ab` | Use `buildPreparedUploadForm` on the returned blob. Migration 007 preserves the distinction between an upright browser crop and an uncropped upload. |
-| Task 9, implemented | Admin access, curation, batch control and telemetry at `71ccb3b` | Desktop and mobile Chrome covered sign-in, editor navigation, maker suspension and restoration, public visibility, tracked redirects and sign-out against a local auth fixture and PostgreSQL 16. |
-| Tasks 8 and 10 | The public routes are ready for the discovery frontend. The benchmark harness can start in parallel. | Complete the hosted acceptance checks after public discovery is integrated. |
+Eight of ten implementation tasks are complete on `feat/seamlens-v1`. Tasks 8 and 10 can start in parallel.
+
+- [x] **1. Taxonomy and measurements** — Garment schema, canonical serializer and measurement parser (`2251d96`).
+- [x] **2. Scoring and explanations** — Regional scoring and match/difference chips (`792396a`).
+- [x] **3. Database and sample catalog** — Migrations, publication guards and 68 local WebP fixtures (`9a39429`, `357bc6c`).
+- [x] **4. Vision, embeddings and spend limits** — Budgeted model adapters and PostgreSQL contention checks (`db42e6b`). Live model acceptance remains open below.
+- [x] **5. Search engine** — Image normalization, rate limits, cached analysis and indexed hybrid ranking (`0a105e9`, `3bde4dd`).
+- [x] **6. Public search API** — Browser image preparation, analyze/refine routes and tracked maker redirects (`7e4a180`, `29c05ab`). Pass the prepared blob to `buildPreparedUploadForm` to preserve crop origin.
+- [x] **7. Catalog ingestion** — Approved Shopify and CSV imports, immutable media and reviewable drafts (`cd3ea3d`). Migration 004 provisions the default Supabase bucket.
+- [ ] **8. Public discovery frontend** — Build the upload dock and search results at `/` and `/search` using the Task 6 endpoints.
+- [x] **9. Admin curation** — Allowlisted sign-in, maker and import controls, pattern review, re-embedding and telemetry (`71ccb3b`).
+- [ ] **10. Benchmark and release checks** — Implement the smoke benchmark, then exercise the integrated public and admin flows on staging.
+
+**Verification so far.** A fresh checkout passed the frozen install, typecheck, all 200 default tests and the production build. The preceding integration run also passed the opt-in native PostgreSQL contention test. Desktop and mobile Chrome checks used a local auth fixture and confirmed that maker suspension and restoration immediately affected search results and redirects. The 2,000-view local PGlite benchmark measured p95 at 4.14 ms for full silhouette and 3.12 ms for filtered bodice across 30 warmed calls per case.
+
+**Open staging checks.** Record live Gemini extraction, latency and spend for Task 4. Complete hosted Supabase Auth, Storage and release acceptance under Task 10.
 
 Use the existing feature worktree and `bun.lock`. Run `bun install --frozen-lockfile` on a fresh checkout. Generate each Superpowers task brief from this revision immediately before dispatch and include Global Constraints. Parallel writers on independent tasks use separate worktrees. Give each diff to a reviewer and record the commit and verification in the feature worktree’s progress ledger. The coordinator owns shared migrations and integration order.
 
