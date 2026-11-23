@@ -265,9 +265,13 @@ export async function executeSessionSearch(
     const eligibleSql = eligibleViews(column);
     const { rows } = await tx.query<CandidateRow>(
       `WITH nearest AS MATERIALIZED (
-        SELECT v.id, v.pattern_id, v.${column} <=> $7::vector AS distance
-        ${eligibleSql}
-        ORDER BY distance, v.id
+        SELECT id, pattern_id, distance FROM (
+          SELECT v.id, v.pattern_id, v.${column} <=> $7::vector AS distance
+          ${eligibleSql}
+          ORDER BY distance
+          FETCH FIRST 40 ROWS WITH TIES
+        ) boundary
+        ORDER BY distance, id
         LIMIT 40
       )
       SELECT
