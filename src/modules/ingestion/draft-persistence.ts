@@ -93,20 +93,26 @@ export async function persistDraft(
   // Serialize first imports from different batches, including designs sharing a maker-scoped external ID.
   await tx.query('SELECT pg_advisory_xact_lock(hashtext($1))', [makerId]);
   const externalIds = draft.sizeBands.flatMap(band => band.externalProductId ? [band.externalProductId] : []);
-  const { rows: matches } = await tx.query<{ id: string; status: string }>(
-    `SELECT p.id, p.status FROM patterns p WHERE p.maker_id = $1 AND
-       (p.slug = $2 OR EXISTS (
-         SELECT 1 FROM pattern_size_bands b WHERE b.pattern_id = p.id AND b.external_product_id = ANY($3::text[])
-       ) OR EXISTS (
-         SELECT 1 FROM ingestion_items i
-          WHERE i.pattern_id = p.id AND i.stage = 'ready_for_review'
-            AND (i.external_ref = $4 OR EXISTS (
-              SELECT 1 FROM jsonb_array_elements(
-                CASE WHEN jsonb_typeof(i.raw_payload->'sizeBands') = 'array'
-                     THEN i.raw_payload->'sizeBands' ELSE '[]'::jsonb END
-              ) candidate WHERE candidate->>'externalProductId' = ANY($3::text[])
-            ))
-       )) FOR UPDATE OF p`,
+  const { rows: matches } = await tx.query<{ id: string; status: string; has_merged_offers: boolean }>(
+    `WITH matches AS (
+       SELECT COALESCE(p.merged_into_pattern_id, p.id) AS canonical_id
+       FROM patterns p WHERE p.maker_id = $1 AND
+         (p.slug = $2 OR EXISTS (
+           SELECT 1 FROM pattern_size_bands b WHERE b.pattern_id = p.id AND b.external_product_id = ANY($3::text[])
+         ) OR EXISTS (
+           SELECT 1 FROM ingestion_items i
+            WHERE i.pattern_id = p.id AND i.stage = 'ready_for_review'
+              AND (i.external_ref = $4 OR EXISTS (
+                SELECT 1 FROM jsonb_array_elements(
+                  CASE WHEN jsonb_typeof(i.raw_payload->'sizeBands') = 'array'
+                       THEN i.raw_payload->'sizeBands' ELSE '[]'::jsonb END
+                ) candidate WHERE candidate->>'externalProductId' = ANY($3::text[])
+              ))
+         ))
+     )
+     SELECT p.id, p.status,
+            EXISTS (SELECT 1 FROM patterns old WHERE old.merged_into_pattern_id = p.id) AS has_merged_offers
+       FROM patterns p WHERE p.id IN (SELECT canonical_id FROM matches) FOR UPDATE OF p`,
     [makerId, slug, externalIds, draft.groupKey]
   );
   if (matches.length > 1) throw new Error('Import matches multiple designs and requires curator review');
@@ -115,7 +121,10 @@ export async function persistDraft(
     const { rows } = await tx.query<{ human_verified: boolean }>(
       'SELECT human_verified FROM pattern_views WHERE pattern_id = $1 FOR UPDATE', [previous.id]
     );
-    if (previous.status !== 'draft' || rows.some(view => view.human_verified)) {
+    if (previous.status !== 'draft' || previous.has_merged_offers || rows.some(view => view.human_verified)) {
+      // The editor includes the incoming raw fields even when catalog data is
+      // preserved. Invalidate forms loaded before this new source was recorded.
+      await tx.query('UPDATE pattern_views SET updated_at=clock_timestamp() WHERE pattern_id=$1', [previous.id]);
       return { patternId: previous.id, flags: [...flags, 'curated_reimport'] };
     }
   }

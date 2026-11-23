@@ -201,7 +201,10 @@ async function processItem(deps: IngestionWorkerDeps, batchId: string, item: Cla
       const { patternId, flags } = await persistDraft(tx, maker.id, patternSlug, draft, views);
       await tx.query(
         `UPDATE ingestion_items SET pattern_id = $2, review_flags = $3, stage = 'ready_for_review',
-             claim_token = NULL, claim_expires_at = NULL, error_message = NULL, updated_at = now()
+             claim_token = NULL, claim_expires_at = NULL, error_message = NULL,
+             updated_at = greatest(clock_timestamp(), (
+               SELECT max(verified_at) + interval '1 microsecond' FROM pattern_views WHERE pattern_id=$2
+             ))
           WHERE id = $1`,
         [item.id, patternId, flags]
       );
