@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "garment_category": "dress",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "trapeze_tent",
+    "ease_level": "oversized",
+    "garment_length": "maxi"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "halter",
+    "neckline_depth": "high",
+    "collar_type": "none",
+    "shaping_darts_seams": [
+      "none_cut_straight"
+    ],
+    "waist_definition": "no_waist_seam_continuous",
+    "back_detail": "tie_back"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "sleeveless_cut_in",
+    "sleeve_style": "none_sleeveless",
+    "sleeve_length": "sleeveless",
+    "cuff_finish": "bias_bound"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": true,
+    "skirt_construction": "a_line_panel",
+    "tier_count": 0,
+    "slit_detail": "none",
+    "hemline_shape": "high_low",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "pullover_no_closure",
+    "finish_structure": "bias_bound"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "Tall narrow neck band supports a gathered front.",
+    "sleeves_armscye": "Open armholes taper up into the halter.",
+    "skirt_hemline": "The continuous A-line cut rises in front and dips to ankle length behind.",
+    "overall_drape_and_proportions": "Fullness starts at the shoulders and sweeps into the hem."
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "garment_category": "top",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "shirt_dress_blouse",
+    "ease_level": "relaxed",
+    "garment_length": "tunic"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "mandarin_band",
+    "neckline_depth": "high",
+    "collar_type": "band_stand",
+    "shaping_darts_seams": [
+      "tucks_pleats",
+      "gathers_yoke"
+    ],
+    "waist_definition": "no_waist_seam_continuous",
+    "back_detail": "unknown"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "yoke_sleeve",
+    "sleeve_style": "fitted_straight",
+    "sleeve_length": "wrist_long",
+    "cuff_finish": "buttoned_placket_cuff"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": false,
+    "skirt_construction": "none_top_hem",
+    "tier_count": 0,
+    "slit_detail": "side_slit",
+    "hemline_shape": "curved_shirt_tail",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "button_front_partial_placket",
+    "finish_structure": "unlined_faced"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "A narrow upright collar ends over a small placket surrounded by stitched tucks.",
+    "sleeves_armscye": "Long sleeves descend from a shoulder yoke to button cuffs.",
+    "skirt_hemline": "Deep vents separate the curved fronts and backs.",
+    "overall_drape_and_proportions": "Skimming long tunic with fullness released from the pintucks."
+  }
+}

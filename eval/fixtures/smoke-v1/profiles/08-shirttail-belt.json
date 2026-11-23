@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "garment_category": "dress",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "shirt_dress_blouse",
+    "ease_level": "semi_fitted",
+    "garment_length": "midi"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "collared_shirt",
+    "neckline_depth": "high",
+    "collar_type": "classic_point",
+    "shaping_darts_seams": [
+      "waist_dart"
+    ],
+    "waist_definition": "cinched_tie_belt",
+    "back_detail": "unknown"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "set_in",
+    "sleeve_style": "fitted_straight",
+    "sleeve_length": "three_quarter",
+    "cuff_finish": "buttoned_placket_cuff"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": true,
+    "skirt_construction": "a_line_panel",
+    "tier_count": 0,
+    "slit_detail": "side_slit",
+    "hemline_shape": "curved_shirt_tail",
+    "pockets": [
+      "patch"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "button_front_full",
+    "finish_structure": "unlined_faced"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "Point collar and stitched button stand frame the opening.",
+    "sleeves_armscye": "Tailored straight sleeve has a short button cuff.",
+    "skirt_hemline": "Side openings rise up to a curved shirt-tail hem.",
+    "overall_drape_and_proportions": "A removable belt shapes the waist of an A-line button-front dress."
+  }
+}

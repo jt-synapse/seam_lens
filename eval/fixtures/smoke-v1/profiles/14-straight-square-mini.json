@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "garment_category": "dress",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "fit_and_flare",
+    "ease_level": "close_fitting",
+    "garment_length": "mini"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "square",
+    "neckline_depth": "modest_mid",
+    "collar_type": "none",
+    "shaping_darts_seams": [
+      "bust_dart",
+      "waist_dart"
+    ],
+    "waist_definition": "natural_seam",
+    "back_detail": "unknown"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "sleeveless_straps",
+    "sleeve_style": "wide_strap",
+    "sleeve_length": "sleeveless",
+    "cuff_finish": "none_hemmed"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": true,
+    "skirt_construction": "gathered_rectangle",
+    "tier_count": 1,
+    "slit_detail": "none",
+    "hemline_shape": "straight_level",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "invisible_zip_back",
+    "finish_structure": "unknown"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "Wide shoulder straps frame a low square edge and two sets of darts.",
+    "sleeves_armscye": "The bodice ends directly at the sleeveless arm edge.",
+    "skirt_hemline": "Gathering above the thigh-length skirt sits on the waist seam.",
+    "overall_drape_and_proportions": "Close torso with full brief skirt."
+  }
+}

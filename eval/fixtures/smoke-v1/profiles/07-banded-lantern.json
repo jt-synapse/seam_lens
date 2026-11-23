@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "garment_category": "top",
+  "substrate_compatibility": "knit",
+  "silhouette": {
+    "overall_shape": "wrap",
+    "ease_level": "close_fitting",
+    "garment_length": "hip_length"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "surplice_wrap",
+    "neckline_depth": "modest_mid",
+    "collar_type": "none",
+    "shaping_darts_seams": [
+      "bust_dart"
+    ],
+    "waist_definition": "cinched_tie_belt",
+    "back_detail": "unknown"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "set_in",
+    "sleeve_style": "puff_full_lantern",
+    "sleeve_length": "elbow",
+    "cuff_finish": "band_cuff"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": false,
+    "skirt_construction": "none_top_hem",
+    "tier_count": 0,
+    "slit_detail": "none",
+    "hemline_shape": "straight_level",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "wrap_tie",
+    "finish_structure": "unlined_faced"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "A curved crossover edge wraps into a narrow waist tie.",
+    "sleeves_armscye": "Full rounded sleeve tapers abruptly into a wide fitted elbow band.",
+    "skirt_hemline": "Smooth top hem sits over high hip.",
+    "overall_drape_and_proportions": "The narrow body emphasizes the round lanterns."
+  }
+}

@@ -1,0 +1,195 @@
+{
+  "datasetId": "smoke-v1",
+  "labelProvenance": "Construction-based labels authored for original synthetic drawings from the descriptions and measurement ranges of the Stage A seed. A grade of 2 indicates a close construction match in the selected region and a grade of 1 indicates an adaptable match with a meaningful difference. Labels were assigned before running retrieval. These are synthetic labels, without independent human grading.",
+  "cases": [
+    {
+      "id": "01-floral-cowl",
+      "description": "Cowl-neck bias slip in a burgundy and cream blossom print",
+      "imagePath": "images/01-floral-cowl.webp",
+      "profilePath": "profiles/01-floral-cowl.json",
+      "focusRegion": "bodice_neckline",
+      "relevantGrades": {
+        "claude-bias-cowl-slip": 2
+      },
+      "printTrapPatternIds": [
+        "meadow-floral-crew-tee"
+      ],
+      "labelRationale": "Claude supplies a bias-draped cowl without darts or a waist seam. Meadow shares the burgundy blossom surface but its crew neck and straight knit block cannot reproduce the folded cowl."
+    },
+    {
+      "id": "02-plaid-sweetheart",
+      "description": "Plaid sweetheart sheath with visible contour seams",
+      "imagePath": "images/02-plaid-sweetheart.webp",
+      "profilePath": "profiles/02-plaid-sweetheart.json",
+      "focusRegion": "bodice_neckline",
+      "relevantGrades": {
+        "ines-princess-sweetheart-sheath": 2
+      },
+      "printTrapPatternIds": [
+        "brier-plaid-camp-shirt"
+      ],
+      "labelRationale": "Inès supplies the sweetheart and boned princess bodice. Brier shares the rust and olive plaid surface but has a camp collar, button front and no fitted princess panel."
+    },
+    {
+      "id": "03-square-neck-crop",
+      "description": "Cropped darted square-neck blouse with tie tails",
+      "imagePath": "images/03-square-neck-crop.webp",
+      "profilePath": "profiles/03-square-neck-crop.json",
+      "focusRegion": "bodice_neckline",
+      "relevantGrades": {
+        "linden-cropped-square-blouse": 2,
+        "solene-square-puff-midi-dress": 1
+      },
+      "labelRationale": "Linden shares the cropped square neckline, shaping darts and back tie. Solène is a cross-category option with the same square neckline and darts, but adds a natural-waist seam."
+    },
+    {
+      "id": "04-gathered-cap",
+      "description": "Knee dress with short set-in puff sleeves and cuff bands",
+      "imagePath": "images/04-gathered-cap.webp",
+      "profilePath": "profiles/04-gathered-cap.json",
+      "focusRegion": "sleeves_armscye",
+      "relevantGrades": {
+        "paloma-circle-skirt-fit-flare": 2,
+        "solene-square-puff-midi-dress": 1,
+        "linden-cropped-square-blouse": 1
+      },
+      "labelRationale": "Paloma has the short cap-gathered sleeve and band cuff. Solène and Linden share the set-in puff construction with different cuff treatments, and Solène adds sleeve length."
+    },
+    {
+      "id": "05-raglan-bishop",
+      "description": "Keyhole blouse with raglan bishop sleeves",
+      "imagePath": "images/05-raglan-bishop.webp",
+      "profilePath": "profiles/05-raglan-bishop.json",
+      "focusRegion": "sleeves_armscye",
+      "relevantGrades": {
+        "celeste-bishop-peasant-blouse": 2,
+        "vesper-surplice-wrap-dress": 1
+      },
+      "labelRationale": "Céleste shares the long, elastic-cuffed raglan bishop sleeve. The bishop maxi view of Vesper shares the shape and length with a set-in armhole and tailored cuff."
+    },
+    {
+      "id": "06-knit-wrap",
+      "description": "Fitted ballet wrap top with narrow full-length sleeves",
+      "imagePath": "images/06-knit-wrap.webp",
+      "profilePath": "profiles/06-knit-wrap.json",
+      "focusRegion": "full_silhouette",
+      "relevantGrades": {
+        "juno-knit-wrap-top": 2
+      },
+      "labelRationale": "Juno’s fitted long-sleeve jersey view matches the crossover front, side tie, slim sleeve and hip-length silhouette."
+    },
+    {
+      "id": "07-banded-lantern",
+      "description": "Elbow lantern top with deep bands at the sleeve ends",
+      "imagePath": "images/07-banded-lantern.webp",
+      "profilePath": "profiles/07-banded-lantern.json",
+      "focusRegion": "sleeves_armscye",
+      "relevantGrades": {
+        "juno-knit-wrap-top": 2
+      },
+      "labelRationale": "Juno’s second view supplies the set-in elbow lantern whose volume narrows into a band. Cuff and fullness differ substantially from a bishop sleeve."
+    },
+    {
+      "id": "08-shirttail-belt",
+      "description": "Belted point-collar dress with a curved shirttail",
+      "imagePath": "images/08-shirttail-belt.webp",
+      "profilePath": "profiles/08-shirttail-belt.json",
+      "focusRegion": "full_silhouette",
+      "relevantGrades": {
+        "marigold-collared-shirtdress": 2
+      },
+      "labelRationale": "Marigold combines a point collar, full button placket, tie belt, cuffed sleeves and sculpted shirttail skirt."
+    },
+    {
+      "id": "09-three-gathered-tiers",
+      "description": "Loose smock with three gathered panels below a raised seam",
+      "imagePath": "images/09-three-gathered-tiers.webp",
+      "profilePath": "profiles/09-three-gathered-tiers.json",
+      "focusRegion": "skirt_hemline",
+      "relevantGrades": {
+        "cora-tiered-smock-dress": 2,
+        "alma-shirred-empire-sundress": 1
+      },
+      "labelRationale": "Cora matches the stepped three-tier construction. Alma adapts the raised seam and gathered volume with one fewer tier and a substantially closer bodice."
+    },
+    {
+      "id": "10-box-pleated-midi",
+      "description": "Boatneck midi with stitched waist and deep skirt box pleats",
+      "imagePath": "images/10-box-pleated-midi.webp",
+      "profilePath": "profiles/10-box-pleated-midi.json",
+      "focusRegion": "skirt_hemline",
+      "relevantGrades": {
+        "noemi-pleated-fit-flare-dress": 2
+      },
+      "labelRationale": "Noemi supplies a waist-seamed midi with deep box pleats. Circular and gathered skirts require a different pattern cut and distribute fullness differently."
+    },
+    {
+      "id": "11-high-low-halter",
+      "description": "Halter tent maxi with a dipped back hem",
+      "imagePath": "images/11-high-low-halter.webp",
+      "profilePath": "profiles/11-high-low-halter.json",
+      "focusRegion": "skirt_hemline",
+      "relevantGrades": {
+        "rowan-trapeze-halter-dress": 2
+      },
+      "labelRationale": "Rowan supplies a continuous, loose trapeze section and a high-low hem. A waist-seamed A-line would need a different panel layout."
+    },
+    {
+      "id": "12-gored-side-slit",
+      "description": "Off-shoulder A-line with narrow gore seams and a walking slit",
+      "imagePath": "images/12-gored-side-slit.webp",
+      "profilePath": "profiles/12-gored-side-slit.json",
+      "focusRegion": "skirt_hemline",
+      "relevantGrades": {
+        "odette-off-shoulder-gored-midi": 2
+      },
+      "labelRationale": "Odette provides the fitted upper skirt, vertical gore seams and released side slit. A fluid bias skirt with a slit lacks the gored structure."
+    },
+    {
+      "id": "13-curve-puff-midi",
+      "description": "Square-neck gathered midi requested for 61-inch bust and 63-inch hip",
+      "imagePath": "images/13-curve-puff-midi.webp",
+      "profilePath": "profiles/13-curve-puff-midi.json",
+      "focusRegion": "full_silhouette",
+      "filters": {
+        "userBustIn": 61,
+        "userHipIn": 63
+      },
+      "relevantGrades": {
+        "solene-square-puff-midi-dress": 2
+      },
+      "labelRationale": "Solène matches the square bodice, puff sleeves and gathered midi. Only its Curve band contains both 61-inch bust and 63-inch hip measurements."
+    },
+    {
+      "id": "14-straight-square-mini",
+      "description": "Wide-strap square mini requested for 35-inch bust and 37-inch hip",
+      "imagePath": "images/14-straight-square-mini.webp",
+      "profilePath": "profiles/14-straight-square-mini.json",
+      "focusRegion": "full_silhouette",
+      "filters": {
+        "userBustIn": 35,
+        "userHipIn": 37
+      },
+      "relevantGrades": {
+        "solene-square-puff-midi-dress": 2,
+        "alma-shirred-empire-sundress": 1
+      },
+      "labelRationale": "Solène’s second view combines a wide-strap square bodice with a full skirt at the natural waist. These measurements require its Straight band. Alma supplies the straps and gathers but has a raised shirred waist and longer hem."
+    },
+    {
+      "id": "15-pintuck-curve-tunic",
+      "description": "Band-collar pintuck tunic requested for 63-inch bust and 65-inch hip",
+      "imagePath": "images/15-pintuck-curve-tunic.webp",
+      "profilePath": "profiles/15-pintuck-curve-tunic.json",
+      "focusRegion": "full_silhouette",
+      "filters": {
+        "userBustIn": 63,
+        "userHipIn": 65
+      },
+      "relevantGrades": {
+        "margot-mandarin-tunic-blouse": 2
+      },
+      "labelRationale": "Margot supplies a band collar, pintucked front, partial placket and cuffed sleeves. Its Curve Plus band contains both measurements."
+    }
+  ]
+}

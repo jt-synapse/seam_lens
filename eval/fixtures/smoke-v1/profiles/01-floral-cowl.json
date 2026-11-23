@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "garment_category": "dress",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "bias_slip",
+    "ease_level": "semi_fitted",
+    "garment_length": "midi"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "cowl",
+    "neckline_depth": "modest_mid",
+    "collar_type": "none",
+    "shaping_darts_seams": [
+      "bias_drape"
+    ],
+    "waist_definition": "no_waist_seam_continuous",
+    "back_detail": "unknown"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "sleeveless_straps",
+    "sleeve_style": "spaghetti_camisole",
+    "sleeve_length": "sleeveless",
+    "cuff_finish": "bias_bound"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": true,
+    "skirt_construction": "bias_cut",
+    "tier_count": 0,
+    "slit_detail": "side_slit",
+    "hemline_shape": "straight_level",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "pullover_no_closure",
+    "finish_structure": "unknown"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "Burgundy floral cowl hangs in two folds between narrow straps, with no bust darts.",
+    "sleeves_armscye": "Slender stitched straps frame a low armhole.",
+    "skirt_hemline": "One side opening releases the narrow bias skirt.",
+    "overall_drape_and_proportions": "Long continuous cut skims the waist without a join."
+  }
+}
