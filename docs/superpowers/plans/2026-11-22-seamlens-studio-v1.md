@@ -21,7 +21,7 @@
 
 ## Implementation checklist
 
-Nine of ten implementation tasks are complete on `feat/seamlens-v1`. Task 10 is next.
+All ten tasks have implementation on `feat/seamlens-v1`. Task 10 passed its offline release checks. Hosted acceptance remains open.
 
 - [x] **1. Taxonomy and measurements** — Garment schema, canonical serializer and measurement parser (`2251d96`).
 - [x] **2. Scoring and explanations** — Regional scoring and match/difference chips (`792396a`).
@@ -32,11 +32,11 @@ Nine of ten implementation tasks are complete on `feat/seamlens-v1`. Task 10 is 
 - [x] **7. Catalog ingestion** — Approved Shopify and CSV imports, immutable media and reviewable drafts (`cd3ea3d`). Migration 004 provisions the default Supabase bucket.
 - [x] **8. Public discovery frontend** — Upload, direct image URL and sample entry points at `/`, with part-focus, filters, technical flats and tracked maker links at `/search` (`4ac1660`).
 - [x] **9. Admin curation** — Allowlisted sign-in, maker and import controls, pattern review, re-embedding and telemetry (`71ccb3b`).
-- [ ] **10. Benchmark and release checks** — Implement the smoke benchmark, then exercise the integrated public and admin flows on staging.
+- [ ] **10. Benchmark and release checks** — The benchmark and live model tracking are implemented (`23c8dab`, `58e6132`). Stage A passed. Stage B and hosted acceptance await staging inputs.
 
-**Verification so far.** Task 8 passed the frozen install, typecheck and production build. The integrated suite passed 242 tests with native PostgreSQL enabled. The live Gemini test was skipped. Desktop and mobile Chrome exercised sample search, technical flats, focus refinement, maker redirect attribution, expired-session recovery and a cropped upload backed by a seeded analysis cache. Desktop and mobile Chrome checks used a local auth fixture and confirmed that maker suspension and restoration immediately affected search results and redirects. The 2,000-view local PGlite benchmark measured p95 at 4.14 ms for full silhouette and 3.12 ms for filtered bodice across 30 warmed calls per case.
+**Stage A passed on 2026-11-23.** All 15 synthetic queries returned a relevant result in the Top-3. Neither print decoy entered the Top-3. MRR and NDCG@5 were both 1.000. The final offline run measured p50 17.3 ms and p95 21.7 ms. All 269 enabled tests passed, including native PostgreSQL contention. The frozen install, typecheck, production build and smoke CLI passed. Local Chrome exercised upload-to-render, nine refinements, click attribution and the curator screens against a seeded PostgreSQL database with fixture authentication and cached extraction.
 
-**Open staging checks.** Record live Gemini extraction, latency and spend for Task 4. Complete hosted Supabase Auth, Storage and release acceptance under Task 10.
+**Stage B pending.** Supply the permissioned staging dataset, hosted app and database. Record live Gemini extraction, latency and spend for Task 4. Complete upload → search → matching-band redirect and approved import → curate → publish → takedown with hosted Supabase Auth and Storage. Record evidence for RLS, worker retry, media loading and attribution before the release decision. The live Gemini test was skipped locally. [Benchmark commands and dataset format](../../../README.md#evaluate-search-quality)
 
 Use the existing feature worktree and `bun.lock`. Run `bun install --frozen-lockfile` on a fresh checkout. Generate each Superpowers task brief from this revision immediately before dispatch and include Global Constraints. Parallel writers on independent tasks use separate worktrees. Give each diff to a reviewer and record the commit and verification in the feature worktree’s progress ledger. The coordinator owns shared migrations and integration order.
 
@@ -553,7 +553,7 @@ git commit -m "feat(admin): add Atelier curation cockpit, auth allowlist, automa
   - `BenchmarkScorecard = { totalCases: number; top3RelevanceRate: number; printTrapContaminationAt3: number; mrr: number; ndcgAt5: number; byRegion: Record<FocusRegion, { count: number; top3RelevanceRate: number; ndcgAt5: number }>; latencyP50Ms: number; latencyP95Ms: number; gatesPassed: boolean; failedGates: string[] }`
   - `evaluateBenchmarkRun(cases: BenchmarkCase[], runs: Array<{ caseId: string; rankedPatternIds: string[]; latencyMs: number }>): BenchmarkScorecard`
 
-- [ ] **Step 1: Write failing tests for scorecard metrics, release gates (`>=85%` Top-3, `0%` print-trap, `<3500ms` p95), and 15-case smoke run**
+- [x] **Step 1: Write failing tests for scorecard metrics, release gates (`>=85%` Top-3, `0%` print-trap, `<3500ms` p95), and 15-case smoke run**
 
 Create `tests/eval/benchmark-harness.test.ts`:
 
@@ -587,12 +587,12 @@ describe('Benchmark scorecard math & 15-query smoke suite', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bun run test tests/eval/benchmark-harness.test.ts`
 Expected: FAIL with missing `@/modules/eval/metrics` and `scripts/eval/run-benchmark.ts`.
 
-- [ ] **Step 3: Implement `metrics.ts`, `eval/fixtures/smoke-v1/manifest.json`, and `scripts/eval/run-benchmark.ts`**
+- [x] **Step 3: Implement `metrics.ts`, `eval/fixtures/smoke-v1/manifest.json`, and `scripts/eval/run-benchmark.ts`**
 
 - Use stable pattern slugs for the authored smoke manifest. At run startup resolve slugs to the current database IDs (the seed generates UUIDs). Fail on unknown labels, missing query images, an empty suite, missing runs or duplicates. Explicitly record zero hits and failures so a partial run cannot improve the reported score. Supply reproducible original query images and expected extractor outputs for all 15 smoke cases. Their fake extractor maps the fixture input to a profile. Compute all embeddings with the same deterministic function as the Stage A seed, then run the real session, filtering and ranking code.
 - Implement `evaluateBenchmarkRun` computing Top-3 hit rate (`any pattern in rankedPatternIds.slice(0, 3) has grade >= 1`), Print-Trap Contamination@3 (`any pattern in slice(0, 3) is in printTrapPatternIds`), reciprocal rank (`1 / (firstHitIdx + 1)`), graded `NDCG@5` using gain `(2^grade - 1) / log2(rank + 1)`, per-`FocusRegion` breakdowns, p50/p95 latency, and release gates (`top3RelevanceRate >= 0.85`, `printTrapContaminationAt3 === 0`, `latencyP95Ms < 3500`).
@@ -600,9 +600,11 @@ Expected: FAIL with missing `@/modules/eval/metrics` and `scripts/eval/run-bench
 - Implement `bun run eval:benchmark --smoke` with a fresh migrated PGlite database and zero network dependencies. Implement `bun run eval:benchmark --dataset eval/benchmark-v1` for the permissioned staging catalog. Use the same live embedding model and dimensions on catalog and query sides. Start cold for each measured upload. Record grade-1/grade-2 relevance, print-trap labels, model IDs, fixture count, and whether timing is offline, server-only or browser end-to-end. Emit Markdown and JSON scorecards and return exit 1 when a required gate fails.
 - For Stage B, verify the 15–25 permissioned houses, 300–500 active Dress/Top views and 50–100 human-graded queries from the spec. Require ≥85% Top-3 relevance, exactly zero trap hits in the Top-3, cold upload-to-render p95 <3,500 ms and refinement <100 ms with zero model calls. Measure browser submission through painted results on staging. Use cold queries and separately timed repeated refinements. Keep the 80 ms API refinement target visible alongside the browser measurement. Mark the live release decision pending while the catalog, human labels or timing evidence are missing.
 
-- [ ] **Step 4. Verify the integrated application.** Run `bun run test`, `bun run typecheck`, `bun run build` and `bun run eval:benchmark --smoke`. All four must exit 0. On a fresh migrated PostgreSQL/pgvector staging database, exercise upload → search → matching-band redirect and approved import → curate → publish → takedown using the configured Supabase Auth and Storage. Check that allowlist, RLS, worker retry, media loading and click attribution behave through their real entry points. Record Stage A and Stage B results separately.
+- [x] **Step 4a. Verify the integrated application locally.** Run `bun run test`, `bun run typecheck`, `bun run build` and `bun run eval:benchmark --smoke`. All four exited 0.
 
-- [ ] **Step 5: Commit and submit for task review**
+- [ ] **Step 4b. Verify the hosted release.** On a fresh migrated PostgreSQL/pgvector staging database, exercise upload → search → matching-band redirect and approved import → curate → publish → takedown using the configured Supabase Auth and Storage. Check that allowlist, RLS, worker retry, media loading and click attribution behave through their real entry points. Record Stage A and Stage B results separately.
+
+- [x] **Step 5: Commit and submit for task review**
 
 ```bash
 git add src/modules/eval eval/fixtures scripts/eval package.json tests/eval
