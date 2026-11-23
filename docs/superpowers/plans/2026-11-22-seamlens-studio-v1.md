@@ -6,7 +6,7 @@
 
 **Architecture:** Single TypeScript Next.js 15 App Router modular monolith backed by PostgreSQL 16 + `pgvector` (Supabase) and Supabase Storage. Uploads and URL images are processed ephemerally in memory into a strict `ConstructionProfileV1` JSON object plus up to four print-stripped regional text embeddings (`768-d`), cached in an `UNLOGGED` Postgres session table (`30 min` TTL) so Part-Focus and sewability filter refinements execute in `<80 ms` with zero extra LLM calls.
 
-**Tech Stack:** Next.js 15 (App Router, Node.js 22 runtime), TypeScript 5.x, Tailwind CSS v4, PostgreSQL 16 + `pgvector` (`pg` in prod, `@electric-sql/pglite` + `vector` extension in automated tests), Supabase Auth & Storage (`@supabase/supabase-js`, `@supabase/ssr`), `@google/genai` (`gemini-2.5-flash` + `gemini-embedding-001`), `zod`, `sharp`, `vitest`, `@testing-library/react`.
+**Tech Stack:** Next.js 15 (App Router, Node.js 22 runtime), TypeScript 5.x, Tailwind CSS v4, PostgreSQL 16 + `pgvector` (`pg` in prod, `@electric-sql/pglite` + `vector` extension in automated tests), Supabase Auth & Storage (`@supabase/supabase-js`, `@supabase/ssr`), `@google/genai` (Gemini structured vision + `gemini-embedding-001`), `zod`, `sharp`, `vitest`, `@testing-library/react`.
 
 **Spec:** `docs/superpowers/specs/2026-11-22-seamlens-technical-architecture-design.md`
 
@@ -17,7 +17,19 @@
 - **Zero Persisted User Uploads:** Raw bytes from user file uploads or direct image URL pastes must never be written to disk, database columns, or Supabase Storage; persist only `image_sha256`, `ConstructionProfileV1` JSONB, canonical strings, and `vector(768)` columns in `UNLOGGED TABLE query_sessions` (`30 min` TTL).
 - **Strict Permissioned Supply Gate:** Database triggers and ingestion workers must physically block importing or publishing patterns unless parent `makers.vetted_status = 'approved'`.
 - **Curation Vector Sync:** Every Admin edit to `pattern_views.construction_profile` must synchronously re-run `serializeCanonicalRegions` and `TextEmbedder.embedRegions` before committing so `pgvector` columns never drift from human-curated tags.
-- **Hard Performance & Cost Ceilings:** Cold visual search target `<3.5s` p95 (`thinkingBudget: 0` on live queries; `1024` on offline ingestion); filter/Part-Focus query target `<100 ms`; IP rate limits `10 req/min` and `40 req/hr` on `/api/v1/search/analyze`, `120 req/min` on `/api/v1/search/query`; configurable daily spend circuit breaker defaulting to `$10.00/day` UTC (`DAILY_AI_BUDGET_USD`).
+- **Hard Performance & Cost Ceilings:** Cold visual search target `<3.5s` p95 (low-latency live extraction and higher-effort catalog extraction per Task 4); filter/Part-Focus query target `<100 ms`; IP rate limits `10 req/min` and `40 req/hr` on `/api/v1/search/analyze`, `120 req/min` on `/api/v1/search/query`; configurable daily spend circuit breaker defaulting to `$10.00/day` UTC (`DAILY_AI_BUDGET_USD`).
+
+## Where to resume
+
+| Work | Evidence or prerequisite | Review handoff |
+| --- | --- | --- |
+| Tasks 1–2, complete | Taxonomy at `2251d96`, scoring and chips at `792396a` | Keep these commits as the tested baseline. |
+| Task 3, review open | Database and seed at `9a39429` on `feat/seamlens-v1` | Start with the remaining Task 3 acceptance tests below. |
+| Task 4 | Reviewed Task 3 schema | Publish the provider interfaces, budget behavior and mock fixtures for both consumers. |
+| Tasks 5 and 7 | Task 4 | Search and ingestion have separate owners. Integrate the reviewed change from each before dispatching its dependents. |
+| Tasks 6, 8, 9 and 10 | 5 → 6 → 8 for public discovery. 5 + 7 → 9 for admin. 5 → 10 for benchmark logic. | Run the final browser, build and release checks after both public and admin surfaces are integrated. |
+
+Use the existing feature worktree and `bun.lock`. Run `bun install --frozen-lockfile` on a fresh checkout. Generate each Superpowers task brief from this revision immediately before dispatch and include Global Constraints. Parallel writers on independent tasks use separate worktrees. Give each diff to a reviewer and record the commit and verification in the feature worktree’s progress ledger. The coordinator owns shared migrations and integration order.
 
 ## Review Focus
 
@@ -38,10 +50,11 @@ next.config.ts
 vitest.config.ts
 .gitignore
 supabase/
-  migrations/202611220001_init_seamlens_v1.sql   # Schema, HNSW/GIN/B-tree indexes, publish trigger, RLS
+  migrations/                                    # Apply ordered SQL migrations for schema, catalog integrity, spend and worker claims
   seed/synthetic-catalog.ts                      # 22 IP-clean synthetic Dress/Top views, Straight+Curve bands, 4 archetypes
+public/catalog-media/                            # Original local seed images
 scripts/
-  db-seed.ts                                     # Applies migration + seeds local/staging Postgres
+  db-seed.ts                                     # Seeds a previously migrated development database
   eval/run-benchmark.ts                          # CLI benchmark runner (--smoke & --dataset)
 eval/
   fixtures/smoke-v1/manifest.json                # 15 deterministic smoke + print-trap benchmark queries
@@ -59,7 +72,7 @@ src/
       chips.ts                                   # Deterministic Matched (<=4) & Diff/Minor Hack (<=2) chip builder
     vision/
       types.ts                                   # VisionExtractor, TextEmbedder, RegionVectors interfaces
-      gemini-vision-extractor.ts                 # Gemini 2.5 Flash structured JSON extractor (live vs ingest thinking)
+      gemini-vision-extractor.ts                 # Structured vision extractor with separate live and ingestion settings
       gemini-text-embedder.ts                    # Batched 768-d L2-normalized text embedder
       usage-ledger.ts                            # Daily UTC token/cost ledger & circuit breaker
     search/
@@ -129,116 +142,7 @@ src/
   - `serializeCanonicalRegions(profile: ConstructionProfileV1): CanonicalRegionTexts`
   - `parseMeasurementInches(raw: string | number | null | undefined, unitHint?: 'in' | 'cm'): number | null`
 
-- [ ] **Step 1: Initialize git, Next.js/Vitest config, and write the failing taxonomy/serializer/measurement tests**
-
-Initialize repository (`git init -b main`), install dependencies (`next@^15`, `react@^19`, `react-dom@^19`, `zod`, `@google/genai`, `pg`, `pgvector`, `sharp`, `@supabase/supabase-js`, `@supabase/ssr`, and devDependencies `typescript`, `tsx`, `vitest`, `@vitejs/plugin-react`, `@testing-library/react`, `@testing-library/jest-dom`, `jsdom`, `@electric-sql/pglite`, `@types/pg`, `@types/node`, `tailwindcss`, `@tailwindcss/postcss`), configure `@/* -> ./src/*` path alias in `tsconfig.json` and `vitest.config.ts`, then create `tests/taxonomy/taxonomy-and-serializer.test.ts`:
-
-```typescript
-import { describe, expect, it } from 'vitest';
-import { ConstructionProfileV1Schema, type ConstructionProfileV1 } from '@/modules/taxonomy/construction-profile';
-import { sanitizeStructuralNote, serializeCanonicalRegions } from '@/modules/taxonomy/canonical-serializer';
-import { parseMeasurementInches } from '@/modules/taxonomy/measurements';
-
-const sampleDress: ConstructionProfileV1 = {
-  schema_version: 1,
-  garment_category: 'dress',
-  substrate_compatibility: 'woven',
-  silhouette: { overall_shape: 'fit_and_flare', ease_level: 'close_fitting', garment_length: 'midi' },
-  bodice_and_neckline: {
-    neckline_type: 'square',
-    neckline_depth: 'modest_mid',
-    collar_type: 'none',
-    shaping_darts_seams: ['bust_dart', 'waist_dart'],
-    waist_definition: 'natural_seam',
-    back_detail: 'closed_solid',
-  },
-  sleeves_and_armscye: {
-    armscye_construction: 'set_in',
-    sleeve_style: 'puff_gathered_cap',
-    sleeve_length: 'elbow',
-    cuff_finish: 'elastic_casing',
-  },
-  skirt_and_hemline: {
-    has_skirt_section: true,
-    skirt_construction: 'gathered_rectangle',
-    tier_count: 1,
-    slit_detail: 'none',
-    hemline_shape: 'straight_level',
-    pockets: ['in_seam'],
-  },
-  closures_and_details: { primary_closure: 'invisible_zip_back', finish_structure: 'lined_bodice' },
-  structural_nuance_notes: {
-    bodice_neckline: 'Liberty-floral square bodice with bias-cut facing and collar-stand absence',
-    sleeves_armscye: 'GINGHAM-check gathered cap with 2x fullness',
-    skirt_hemline: 'Navy/ivory Breton-stripe box-pleat look at side in-seam pockets',
-    overall_drape_and_proportions: 'Crisp cotton wash in crimson red with structured waist join',
-  },
-};
-
-describe('ConstructionProfileV1 & print-blind serialization', () => {
-  it('validates canonical dress profile and rejects unknown enum values', () => {
-    expect(ConstructionProfileV1Schema.safeParse(sampleDress).success).toBe(true);
-    expect(
-      ConstructionProfileV1Schema.safeParse({ ...sampleDress, garment_category: 'trousers' }).success
-    ).toBe(false);
-  });
-
-  it('scrubs compound/uppercase print & color words while preserving sewing terms (Review Focus #2)', () => {
-    const cleaned = sanitizeStructuralNote(
-      'Liberty-floral GINGHAM-check navy/ivory Breton-stripe crimson bias-cut box-pleat collar-stand'
-    );
-    expect(cleaned.toLowerCase()).not.toMatch(/floral|gingham|navy|ivory|stripe|crimson/);
-    expect(cleaned).toContain('bias-cut');
-    expect(cleaned).toContain('box-pleat');
-    expect(cleaned).toContain('collar-stand');
-  });
-
-  it('emits 4 region strings for dresses and null skirt_hemline when has_skirt_section is false', () => {
-    const dressTexts = serializeCanonicalRegions(sampleDress);
-    expect(dressTexts.skirt_hemline).toContain('gathered_rectangle');
-    expect(dressTexts.full_silhouette.toLowerCase()).not.toMatch(/floral|gingham|crimson/);
-
-    const topProfile: ConstructionProfileV1 = {
-      ...sampleDress,
-      garment_category: 'top',
-      skirt_and_hemline: { ...sampleDress.skirt_and_hemline, has_skirt_section: false, skirt_construction: 'none_top_hem', tier_count: 0 },
-    };
-    expect(serializeCanonicalRegions(topProfile).skirt_hemline).toBeNull();
-  });
-
-  it('parses decimal inches, unicode/slash fractions, and converts cm to inches (Review Focus #3)', () => {
-    expect(parseMeasurementInches('44')).toBe(44);
-    expect(parseMeasurementInches('33½"')).toBe(33.5);
-    expect(parseMeasurementInches('34 1/4 in')).toBe(34.3);
-    expect(parseMeasurementInches('101.6 cm')).toBe(40.0);
-    expect(parseMeasurementInches(112, 'cm')).toBe(44.1);
-    expect(parseMeasurementInches('')).toBeNull();
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npx vitest run tests/taxonomy/taxonomy-and-serializer.test.ts`
-Expected: FAIL with module resolution errors for `@/modules/taxonomy/*`.
-
-- [ ] **Step 3: Implement `construction-profile.ts`, `canonical-serializer.ts`, and `measurements.ts`**
-
-- In `src/modules/taxonomy/construction-profile.ts`, define every enum and `ConstructionProfileV1Schema` matching Spec §5.2 (`schema_version: z.literal(1)`, `structural_nuance_notes` fields capped at `300` chars).
-- In `src/modules/taxonomy/canonical-serializer.ts`, implement `sanitizeStructuralNote(raw)` splitting hyphen/slash compounds only on surface-print/color/wash denylist stems (`floral`, `gingham`, `plaid`, `tartan`, `polka`, `stripe`, `striped`, `breton`, `paisley`, `leopard`, `houndstooth`, `check`, `checked`, `crimson`, `red`, `blue`, `navy`, `ivory`, `emerald`, `sage`, `terracotta`, `pink`, `yellow`, `purple`, `black`, `white`, `beige`, `liberty`, `acid-wash`, `bleach`) while leaving structural hyphenates (`bias-cut`, `box-pleat`, `collar-stand`, `set-in`, `a-line`, `in-seam`, `high-low`) intact; implement `serializeCanonicalRegions(profile)` returning deterministic labeled prose for the 4 regions (`skirt_hemline: null` when `!profile.skirt_and_hemline.has_skirt_section`).
-- In `src/modules/taxonomy/measurements.ts`, normalize vulgar fractions (`½ -> .5`, `¼ -> .25`, `¾ -> .75`) and `N M/D` slash fractions, detect `'cm'` suffix or `unitHint === 'cm'`, divide by `2.54`, and round to 1 decimal place (`Math.round(val * 10) / 10`).
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `npx vitest run tests/taxonomy/taxonomy-and-serializer.test.ts`
-Expected: PASS (4 passed).
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add .gitignore package.json package-lock.json tsconfig.json next.config.ts vitest.config.ts src/modules/taxonomy tests/taxonomy
-git commit -m "feat(taxonomy): add ConstructionProfileV1 schema, print-blind serializer, and measurement parser"
-```
+Reviewed at `2251d96`. The branch contains the Bun workspace, Zod taxonomy, canonical serializer and inch parser. Verify compound print removal, preserved construction terms, nullable skirt text and fractional/metric conversions with `bun run test tests/taxonomy/taxonomy-and-serializer.test.ts`.
 
 ---
 
@@ -257,155 +161,31 @@ git commit -m "feat(taxonomy): add ConstructionProfileV1 schema, print-blind ser
   - `MatchChip = { kind: 'matched' | 'diff'; slot: string; label: string }`
   - `buildExplanationChips(query: ConstructionProfileV1, candidate: ConstructionProfileV1, region: FocusRegion, totalScore: number): { matched: MatchChip[]; diffs: MatchChip[] }`
 
-- [ ] **Step 1: Write the failing scoring and chip generation tests**
-
-Create `tests/taxonomy/scoring-and-chips.test.ts`:
-
-```typescript
-import { describe, expect, it } from 'vitest';
-import { computeStructuralScore, combineHybridScore } from '@/modules/taxonomy/scoring';
-import { buildExplanationChips } from '@/modules/taxonomy/chips';
-import type { ConstructionProfileV1 } from '@/modules/taxonomy/construction-profile';
-
-// Construct baseDress (square neck, elbow puff_gathered_cap sleeve, gathered_rectangle midi skirt, woven)
-// and variantSleevelessScoop (scoop neck, none_sleeveless, identical gathered_rectangle midi skirt, woven)
-describe('Deterministic regional structural scoring & chips', () => {
-  it('scores identical profiles as 1.0 across all focus regions and combines with alpha=0.55', () => {
-    expect(computeStructuralScore(baseDress, baseDress, 'full_silhouette')).toBeCloseTo(1.0, 5);
-    expect(computeStructuralScore(baseDress, baseDress, 'bodice_neckline')).toBeCloseTo(1.0, 5);
-    expect(combineHybridScore(0.9, 0.8)).toBeCloseTo(0.55 * 0.9 + 0.45 * 0.8, 5);
-  });
-
-  it('weights skirt_hemline at 0.85+0.15 so matching skirt scores >0.90 under skirt_hemline despite sleeve/neck mismatch', () => {
-    const skirtFocusScore = computeStructuralScore(baseDress, variantSleevelessScoop, 'skirt_hemline');
-    const sleeveFocusScore = computeStructuralScore(baseDress, variantSleevelessScoop, 'sleeves_armscye');
-    expect(skirtFocusScore).toBeGreaterThan(0.9);
-    expect(sleeveFocusScore).toBeLessThan(0.25);
-  });
-
-  it('redistributes the 0.20 skirt weight proportionally when query garment_category is top under full_silhouette', () => {
-    expect(computeStructuralScore(baseTop, baseTop, 'full_silhouette')).toBeCloseTo(1.0, 5);
-  });
-
-  it('emits up to 4 Matched chips and up to 2 Diff/Minor Hack chips when totalScore >= 0.62', () => {
-    const { matched, diffs } = buildExplanationChips(baseDress, variantSleevelessScoop, 'full_silhouette', 0.74);
-    expect(matched.length).toBeGreaterThan(0);
-    expect(matched.length).toBeLessThanOrEqual(4);
-    expect(diffs.length).toBe(2);
-    expect(diffs.map((d) => d.slot)).toEqual(expect.arrayContaining(['neckline_type', 'sleeve_style']));
-
-    const lowScoreChips = buildExplanationChips(baseDress, variantSleevelessScoop, 'full_silhouette', 0.5);
-    expect(lowScoreChips.diffs).toHaveLength(0);
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npx vitest run tests/taxonomy/scoring-and-chips.test.ts`
-Expected: FAIL with missing `@/modules/taxonomy/scoring` and `@/modules/taxonomy/chips`.
-
-- [ ] **Step 3: Implement `scoring.ts` and `chips.ts` with exact Spec §5.4.3 weights**
-
-- In `src/modules/taxonomy/scoring.ts`: implement exact slot weights from Spec §5.4.3 (`full_silhouette`: `overall_shape` `0.20`, `bodice_and_neckline` `0.30` [`neckline_type` `0.14`, darts Jaccard `0.10`, `waist_definition` `0.06`], `sleeves_and_armscye` `0.20` [`sleeve_style` `0.10`, `armscye_construction` `0.05`, `sleeve_length` `0.05`], `skirt_and_hemline` `0.20` [`skirt_construction` `0.12`, `tier_count` `0.04`, `garment_length` `0.04`] redistributed across the `0.80` non-skirt weights via `/ 0.80` when `query.garment_category === 'top'`, `substrate + closure` `0.10`; plus the `0.85 / 0.15` regional weights for `bodice_neckline`, `sleeves_armscye`, and `skirt_hemline`; treat `'both'` substrate as compatible `1.0` with `'woven'` or `'knit'`).
-- In `src/modules/taxonomy/chips.ts`: map enum values to human-readable couture labels (e.g. `'Modest Mid Square Neckline'`, `'Bust + Waist Darts'`, `'Elbow Puff Sleeve'`, `'Diff: Sleeveless block (add sleeve)'`), prioritizing active-region slots first, returning max `4` `matched` chips and max `2` `diffs` chips only when `totalScore >= 0.62`.
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `npx vitest run tests/taxonomy/scoring-and-chips.test.ts`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/modules/taxonomy/scoring.ts src/modules/taxonomy/chips.ts tests/taxonomy/scoring-and-chips.test.ts
-git commit -m "feat(taxonomy): add region-weighted structural scorer and deterministic Match/Diff chip builder"
-```
+Reviewed at `792396a`. The regression suite checks category and regional weights, top-only redistribution, the 0.55 hybrid coefficient and chip limits (four matched and two differences, with differences starting at 0.62). Run `bun run test tests/taxonomy/scoring-and-chips.test.ts`.
 
 ---
 
 ### Task 3: PostgreSQL + `pgvector` Schema, Publish Trigger, RLS & Stage-A Synthetic Seed Catalog
 
-**Files:**
-- Create: `supabase/migrations/202611220001_init_seamlens_v1.sql`
-- Create: `src/lib/env.ts`
-- Create: `src/lib/db.ts`
-- Create: `src/lib/supabase/server.ts`
-- Create: `supabase/seed/synthetic-catalog.ts`
-- Create: `scripts/db-seed.ts`
-- Test: `tests/db/schema-and-seed.test.ts`
+**State.** Commit `9a39429` contains the initial migration, database helpers, seed CLI and 7 database tests. Its synthetic seed creates six approved makers, 18 patterns, 22 views and four archetypes. Resume from that commit.
 
-**Interfaces:**
-- Consumes: `ConstructionProfileV1`, `serializeCanonicalRegions` from `@/modules/taxonomy/*`
-- Produces:
-  - `Queryable = { query<R extends Record<string, unknown> = Record<string, unknown>>(text: string, values?: unknown[]): Promise<{ rows: R[]; rowCount: number | null }> }`
-  - `getDbPool(): Queryable`, `withTransaction<T>(db: Queryable, fn: (tx: Queryable) => Promise<T>): Promise<T>`
-  - `toVectorLiteral(vec: number[] | null): string | null` (formats `[0.1,0.2,...]` and validates `vec.length === 768`)
-  - `seedSyntheticCatalog(db: Queryable): Promise<{ makerCount: number; patternCount: number; viewCount: number; archetypeCount: number }>`
+**Files**
 
-- [ ] **Step 1: Write the failing database migration, trigger, and seed tests using `PGlite` + `vector`**
+- Extend `tests/db/schema-and-seed.test.ts`, `supabase/seed/synthetic-catalog.ts`, `src/lib/db.ts` and the seed media resolver in `src/lib/supabase/server.ts`.
+- Add `supabase/migrations/202611220002_catalog_integrity.sql` and original local fixtures under `public/catalog-media/`. Keep genuine maker media in the configured Storage bucket.
+- Retain `Queryable` from `src/lib/db.ts`. Its result always contains `rows`; pg supplies `rowCount` and PGlite supplies `affectedRows`. Use `RETURNING` when later actions need to distinguish a changed row. Keep `withTransaction`, `toVectorLiteral` and `seedSyntheticCatalog` as entry points.
 
-Create `tests/db/schema-and-seed.test.ts` booting `@electric-sql/pglite` with `{ extensions: { vector } }` and executing `supabase/migrations/202611220001_init_seamlens_v1.sql`:
-
-```typescript
-import { describe, expect, it, beforeAll } from 'vitest';
-import { PGlite } from '@electric-sql/pglite';
-import { vector } from '@electric-sql/pglite/vector';
-import fs from 'node:fs';
-import { seedSyntheticCatalog } from '../../supabase/seed/synthetic-catalog';
-
-describe('PostgreSQL + pgvector schema, publish guardrails, and synthetic seed', () => {
-  let pg: PGlite;
-  beforeAll(async () => {
-    pg = new PGlite({ extensions: { vector } });
-    await pg.exec(fs.readFileSync('supabase/migrations/202611220001_init_seamlens_v1.sql', 'utf8'));
-  });
-
-  it('seeds >=20 synthetic Dress/Top views, Straight+Curve split bands, nullable-hip cropped top, and >=4 archetypes', async () => {
-    const counts = await seedSyntheticCatalog(pg);
-    expect(counts.viewCount).toBeGreaterThanOrEqual(20);
-    expect(counts.archetypeCount).toBeGreaterThanOrEqual(4);
-  });
-
-  it('blocks publishing when maker is pending, dress lacks hip bounds, or pattern has no views', async () => {
-    // 1. Maker vetted_status = 'pending' -> UPDATE patterns SET status = 'published' throws
-    // 2. Dress with hip_min_in = NULL in pattern_size_bands -> throws
-    // 3. Cropped Top (garment_category = 'top') with hip_min_in = NULL and valid bust bounds -> SUCCEEDS
-    await expect(
-      pg.query(`UPDATE patterns SET status = 'published' WHERE slug = 'unapproved-maker-test-dress'`)
-    ).rejects.toThrow(/maker.*approved/i);
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npx vitest run tests/db/schema-and-seed.test.ts`
-Expected: FAIL with missing migration file and seed module.
-
-- [ ] **Step 3: Author SQL migration, `src/lib/db.ts`, `src/lib/supabase/server.ts`, and `supabase/seed/synthetic-catalog.ts`**
-
-- Create `supabase/migrations/202611220001_init_seamlens_v1.sql` with all tables from Spec §5.3 (`makers`, `patterns`, `pattern_size_bands`, `pattern_views`, `curated_archetypes`, `UNLOGGED query_sessions`, `ingestion_batches`, `ingestion_items`, `search_events`, `outbound_clicks`, `api_usage_ledger`, `admin_users`) plus `rate_limit_windows (bucket TEXT, subject_hash TEXT, window_start TIMESTAMPTZ, hit_count INTEGER NOT NULL DEFAULT 1, PRIMARY KEY (bucket, subject_hash, window_start))`, HNSW (`m = 16, ef_construction = 64`) + GIN + B-tree indexes, `enforce_pattern_publish_readiness()` PL/pgSQL trigger, and RLS policies (`DO $$ BEGIN IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN ... END IF; END $$;` so local non-Supabase Postgres / `PGlite` runs cleanly while Supabase enforces `anon` / `authenticated` RLS).
-- Implement `src/lib/env.ts`, `src/lib/db.ts` (`Queryable`, `getDbPool`, `withTransaction`, `toVectorLiteral`), and `src/lib/supabase/server.ts`.
-- Implement `supabase/seed/synthetic-catalog.ts` + `scripts/db-seed.ts` seeding 6 fictional approved makers, 18 published patterns / 22 views (including Straight `32"–46"` + Curve `44"–62"` multi-band dress, cropped blouse with `hip_min_in = null`, floral t-shirt vs. floral square-neck midi dress print-trap decoys, and deterministic L2-normalized 768-d hash-seeded vectors derived from canonical tokens so cosine similarity aligns with construction traits in offline tests) plus 4 `curated_archetypes`.
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `npx vitest run tests/db/schema-and-seed.test.ts`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add supabase src/lib scripts/db-seed.ts tests/db
-git commit -m "feat(db): add Postgres/pgvector schema, publish readiness trigger, RLS, and synthetic seed catalog"
-```
+- [ ] **Write regression tests.** A band with a different maker from its pattern must fail on insert and update. A pending or suspended maker cannot enqueue an import. Approval followed by suspension hides that maker's published patterns, bands and views from both public roles. Verify that public reads exclude permission evidence notes, including with deployment-style preexisting table grants.
+- [ ] **Resolve the schema and transaction findings.** Enforce the pair with a composite foreign key, and check maker approval at batch creation or reassignment. Keep ordinary curation drafts possible. In an upgrade test, apply the original migration, seed representative rows and then apply the new migration. Report inconsistent legacy ownership for correction before validating the constraint. In a separate fresh database, apply all migrations in order. Revoke table-wide maker reads for public roles and grant only the columns needed for catalog display and policy evaluation. Exercise `withTransaction` on a pool, an already acquired client and PGlite, verifying rollback and releasing only connections acquired by the helper.
+- [ ] **Repair the local catalog.** Ship original covers, technical flats and archetype images for all non-null seeded paths. Make synthetic media resolve locally even when Supabase is configured. Verify the files decode, that cover/front/back are distinct when present, and that each archetype's displayed garment and profile agree. Replace the positional dress reference for `surplice-wrap-flutter-top` with a matching named top fixture. Run the seed twice and verify stable IDs and counts. Preserve maker suspensions and pattern takedowns on rerun.
+- [ ] **Verify and review.** Run `bun run test tests/db/schema-and-seed.test.ts` and `bun run typecheck`. Accept when the original guardrails and new regression cases pass. Include a visual spot-check of the local fixtures. Record the fix commit and independent review before closing Task 3.
 
 ---
 
 ### Task 4: Multimodal Vision Extractor, Batched 768-d Text Embedder & Daily Spend Circuit Breaker
 
 **Files:**
+- Modify: `src/lib/env.ts` for validated model configuration and cost estimates. Add `supabase/migrations/202611220003_ai_budget.sql` for in-flight daily spend reservations.
 - Create: `src/modules/vision/types.ts`
 - Create: `src/modules/vision/gemini-vision-extractor.ts`
 - Create: `src/modules/vision/gemini-text-embedder.ts`
@@ -420,64 +200,27 @@ git commit -m "feat(db): add Postgres/pgvector schema, publish readiness trigger
   - `VisionExtractionResult = { status: 'ok' | 'no_garment_detected' | 'unsupported_category_v1' | 'low_visibility_partial'; profile: ConstructionProfileV1 | null; aiConfidence: number; warnings: string[]; inputTokens: number; outputTokens: number }`
   - `VisionExtractor = { extract(input: { images: Array<{ mimeType: string; bytes: Buffer; role?: string }>; contextText?: string; mode: VisionExtractionMode }): Promise<VisionExtractionResult> }`
   - `TextEmbedder = { embedRegions(texts: CanonicalRegionTexts, taskType: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT'): Promise<{ vectors: RegionVectors; inputTokens: number }> }`
+  - `withBudgetedUsage<T>(db: Queryable, request: { id: string; operation: UsageOperation; maxCostUsd: number }, call: () => Promise<{ value: T; inputTokens: number; outputTokens: number; estimatedCostUsd: number }>): Promise<T>`. The adapter owns this call. Treat admin re-embedding as `ingest_embed`.
   - `assertDailyBudgetAvailable(db: Queryable, dailyCapUsd?: number): Promise<void>` (throws `BudgetExceededError` with `statusCode = 503` when UTC day sum `>= dailyCapUsd`)
-  - `recordApiUsage(db: Queryable, delta: { operation: 'search_vision' | 'search_embed' | 'ingest_vision' | 'ingest_embed'; inputTokens: number; outputTokens: number; estimatedCostUsd: number }): Promise<void>`
+  - `UsageOperation = 'search_vision' | 'search_embed' | 'ingest_vision' | 'ingest_embed'`.
+  - `recordApiUsage(db: Queryable, delta: { operation: UsageOperation; inputTokens: number; outputTokens: number; estimatedCostUsd: number }): Promise<void>`
 
-- [ ] **Step 1: Write failing tests for Gemini adapter configs, vector normalization, and `$10/day` circuit breaker**
+**Model compatibility decision.** The spec pins Gemini 2.5 Flash and numeric thinking budgets. Google schedules that model ID to route to Gemini 3.5 Flash-Lite on December 1, 2026. Use the successor's explicit ID as the staging candidate, with minimal thinking for live extraction and medium for offline ingestion. Keep the embedding model, task types, 768 dimensions and provider-independent interfaces from the spec. Check the structured JSON MIME type, response schema, model-specific thinking setting and output bound against the installed SDK. Derive the profile schema from the taxonomy and validate the returned envelope at runtime. Record the actual model ID, price basis, latency and extraction results before selecting it for production. [Provider schedule](https://ai.google.dev/gemini-api/docs/deprecations) · [Supported thinking levels](https://ai.google.dev/gemini-api/docs/thinking)
 
-Create `tests/vision/vision-and-budget.test.ts`:
-
-```typescript
-import { describe, expect, it } from 'vitest';
-import { createGeminiVisionExtractor } from '@/modules/vision/gemini-vision-extractor';
-import { createGeminiTextEmbedder, l2Normalize } from '@/modules/vision/gemini-text-embedder';
-import { assertDailyBudgetAvailable, recordApiUsage, BudgetExceededError } from '@/modules/vision/usage-ledger';
-
-describe('VisionExtractor, TextEmbedder, and Daily Spend Circuit Breaker', () => {
-  it('passes thinkingBudget=0 for live_query and thinkingBudget=1024 for catalog_ingestion', async () => {
-    const calls: unknown[] = [];
-    const fakeClient = { models: { generateContent: async (req: unknown) => { calls.push(req); return mockGeminiJsonResp; } } };
-    const extractor = createGeminiVisionExtractor(fakeClient as never);
-    await extractor.extract({ images: [{ mimeType: 'image/webp', bytes: Buffer.from('x') }], mode: 'live_query' });
-    await extractor.extract({ images: [{ mimeType: 'image/webp', bytes: Buffer.from('x') }], mode: 'catalog_ingestion' });
-    expect((calls[0] as any).config.thinkingConfig.thinkingBudget).toBe(0);
-    expect((calls[1] as any).config.thinkingConfig.thinkingBudget).toBe(1024);
-  });
-
-  it('batches only non-null regions into one 768-d embedContent call and L2-normalizes vectors', async () => {
-    const vec = l2Normalize(Array.from({ length: 768 }, (_, i) => (i === 0 ? 3 : i === 1 ? 4 : 0)));
-    expect(Math.hypot(...vec)).toBeCloseTo(1.0, 6);
-    // Verify top profile with skirt_hemline: null sends 3 contents and returns vectors.skirt === null
-  });
-
-  it('trips BudgetExceededError once UTC daily spend reaches DAILY_AI_BUDGET_USD ($10.00)', async () => {
-    await recordApiUsage(pg, { operation: 'search_vision', inputTokens: 100_000, outputTokens: 20_000, estimatedCostUsd: 10.0 });
-    await expect(assertDailyBudgetAvailable(pg, 10.0)).rejects.toBeInstanceOf(BudgetExceededError);
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npx vitest run tests/vision/vision-and-budget.test.ts`
-Expected: FAIL with missing `@/modules/vision/*` modules.
-
-- [ ] **Step 3: Implement `types.ts`, `gemini-vision-extractor.ts`, `gemini-text-embedder.ts`, and `usage-ledger.ts`**
-
-- In `gemini-vision-extractor.ts`: call `gemini-2.5-flash` with `responseMimeType: 'application/json'`, strict `responseSchema` wrapping `{ status, ai_confidence, warnings, profile }`, and a system prompt instructing technical-flat priority (when `role === 'flat_front' | 'flat_back'`), foreground-garment targeting (`warnings: ['multiple_garments_detected']` when multiple people appear), `'unsupported_category_v1'` on trousers/menswear/outerwear, and strict ban on fabric print/color words in `structural_nuance_notes`. Validate `profile` with `ConstructionProfileV1Schema`.
-- In `gemini-text-embedder.ts`: batch all non-null strings from `CanonicalRegionTexts` in one `models.embedContent` request (`model: 'gemini-embedding-001'`, `config: { outputDimensionality: 768, taskType }`) and L2-normalize each `768`-float vector.
-- In `usage-ledger.ts`: atomic `INSERT INTO api_usage_ledger ... ON CONFLICT (usage_date, operation) DO UPDATE` + `SUM(estimated_cost_usd) WHERE usage_date = (now() AT TIME ZONE 'UTC')::DATE`.
+- [ ] **Step 1. Write adapter and spend tests.** With a recording fake client, assert one structured extraction request per view and the intended model-specific settings for each mode. Validate the response envelope, confidence in [0,1], allowed status and Zod profile. An unusable or malformed response produces a typed failure. A no-garment response carries no profile. A partial or unsupported response can carry a usable upper-body profile for Part-Focus.
+- [ ] **Step 2. Test embeddings and contention.** Assert one batch maps four regions in order for a dress and three for a top, with a null skirt. Reject a missing vector, non-finite element, zero norm or incorrect dimension. Assert unit norm for each usable vector. In a migrated database, race two reservations when only one fits, settle the winner once, and test the UTC boundary. Run `bun run test tests/vision/vision-and-budget.test.ts` and observe failure before implementation.
+- [ ] **Step 3. Implement and account for paid calls.** Give technical flats priority, target the foreground garment, flag multiple garments, and keep print and color out of the structural notes. Send non-null canonical region strings as separate embedding inputs in a single request to `gemini-embedding-001` with `outputDimensionality: 768`, the caller’s retrieval task type and L2 normalization. Centralize the budget wrapper in `usage-ledger.ts` for live extraction, ingestion and admin re-embedding. Reserve a conservative upper cost atomically against the UTC day's cap before each paid call, using bounded inputs/outputs and configured model rates. Settle the reservation and actual or conservatively estimated usage once using its request ID. Release on a confirmed unbilled failure and keep unknown billing outcomes covered. Persist billed extraction usage even if embedding or later database work fails. Mock providers in routine tests. Verify a fixture image and one region batch with the real adapters on staging before live acceptance.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run tests/vision/vision-and-budget.test.ts`
+Run: `bun run test tests/vision/vision-and-budget.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit and submit for task review**
 
 ```bash
-git add src/modules/vision tests/vision
-git commit -m "feat(vision): add Gemini 2.5 Flash extractor, batched 768-d embedder, and daily spend circuit breaker"
+git add src/modules/vision src/lib/env.ts supabase/migrations/202611220003_ai_budget.sql tests/vision
+git commit -m "feat(vision): add structured Gemini extractor, batched 768-d embedder, and daily spend circuit breaker"
 ```
 
 ---
@@ -490,18 +233,23 @@ git commit -m "feat(vision): add Gemini 2.5 Flash extractor, batched 768-d embed
 - Create: `src/modules/search/hybrid-ranker.ts`
 - Create: `src/modules/search/analyze-service.ts`
 - Test: `tests/search/image-security-and-ranker.test.ts`
+- Amend `src/modules/taxonomy/scoring.ts` and `tests/taxonomy/scoring-and-chips.test.ts` for the top-only weighting correction from spec §5.4.3.
 
 **Interfaces:**
 - Consumes: `@/modules/taxonomy/*`, `@/modules/vision/*`, `@/lib/db`
 - Produces:
-  - `SearchError` (`code: 'UNSUPPORTED_IMAGE_FORMAT' | 'SSRF_BLOCKED' | 'HTML_PAGE_URL_UNSUPPORTED' | 'NO_GARMENT_DETECTED' | 'SESSION_EXPIRED' | 'RATE_LIMITED'`, `statusCode: number`)
+  - `CropBox = { x: number; y: number; width: number; height: number }` in normalized upright-image coordinates. Validate finite values, positive dimensions and containment.
+  - `AnalyzeDeps = { db: Queryable; visionExtractor: VisionExtractor; textEmbedder: TextEmbedder }`. Inject budgeted adapters in the live composition root. Offline fixtures implement the same interfaces.
+  - `AnalyzeInput = ({ source: 'upload'; bytes: Buffer } | { source: 'url'; imageUrl: string }) & { cropBox?: CropBox | null; focusRegion: FocusRegion; filters: SearchFilters }`. Task 6 handles archetypes. Export `SearchExecutionResult` from the ranker as the awaited return type of `executeSessionSearch`.
+  - `SearchError` (`code: 'UNSUPPORTED_IMAGE_FORMAT' | 'SSRF_BLOCKED' | 'HTML_PAGE_URL_UNSUPPORTED' | 'NO_GARMENT_DETECTED' | 'SESSION_EXPIRED' | 'RATE_LIMITED' | 'INVALID_INPUT' | 'IMAGE_TOO_LARGE' | 'UNSUPPORTED_CATEGORY_V1' | 'REGION_UNAVAILABLE'`, `statusCode: number`)
   - `validateAndNormalizeServerImage(raw: Buffer, cropBox?: CropBox | null): Promise<{ webpBytes: Buffer; sha256: string; width: number; height: number }>`
-  - `fetchDirectImageUrlSafe(rawUrl: string, deps?: { lookup?: DnsLookupFn; fetchImpl?: typeof fetch }): Promise<Buffer>`
+  - `SafeImageTransport` supplies hostname resolution and HTTPS requests to a selected resolved address, preserving the original host for TLS.
+  - `fetchDirectImageUrlSafe(rawUrl: string, deps?: SafeImageTransport): Promise<Buffer>`
   - `enforceRateLimit(db: Queryable, ipHash: string, bucket: 'analyze_min' | 'analyze_hr' | 'query_min', limit: number, windowSec: number): Promise<{ allowed: boolean; retryAfterSec: number }>`
   - `SearchFilters = { substrate?: 'woven' | 'knit' | null; userBustIn?: number | null; userHipIn?: number | null; formats?: DeliveryFormat[]; skills?: SkillLevel[] }`
   - `RankedPatternCard = { patternId: string; viewId: string; viewLabel: string; secondaryViewCount: number; garmentCategory: GarmentCategory; title: string; makerName: string; coverImageUrl: string; flatFrontImageUrl: string | null; flatBackImageUrl: string | null; matchedSizeBandId: string; priceCents: number | null; currency: string; bustRangeIn: [number, number]; hipRangeIn: [number | null, number | null]; designerSizeLabel: string; substrateType: SubstrateCompatibility; formats: DeliveryFormat[]; skillLevel: SkillLevel; totalScore: number; matchedChips: MatchChip[]; diffChips: MatchChip[] }`
   - `CandidateReranker = { rerank(query: ConstructionProfileV1, focusRegion: FocusRegion, candidates: RankedPatternCard[]): Promise<RankedPatternCard[]> }` (default `noopCandidateReranker` returning `candidates` unchanged—pluggable Stage-2 flat reranker seam per Spec §4)
-  - `executeSessionSearch(db: Queryable, querySessionId: string, focusRegion: FocusRegion, filters: SearchFilters, reranker?: CandidateReranker): Promise<{ querySessionId: string; queryStatus: string; extractedProfile: ConstructionProfileV1; warnings: string[]; results: RankedPatternCard[]; relaxationHints: string[] }>`
+  - `executeSessionSearch(db: Queryable, querySessionId: string, focusRegion: FocusRegion, filters: SearchFilters, reranker?: CandidateReranker): Promise<{ querySessionId: string; queryStatus: 'ok' | 'low_visibility_partial' | 'unsupported_category_v1'; extractedProfile: ConstructionProfileV1; warnings: string[]; results: RankedPatternCard[]; relaxationHints: Array<{ facet: keyof SearchFilters; resultCount: number; label: string }> }>`
   - `analyzeAndSearch(deps: AnalyzeDeps, input: AnalyzeInput): Promise<SearchExecutionResult>`
 
 - [ ] **Step 1: Write failing tests for EXIF/HEIC rejection, SSRF redirect blocking, rate limits, and hybrid ranking**
@@ -516,26 +264,32 @@ Create `tests/search/image-security-and-ranker.test.ts` covering:
    - Deduplicates multi-view patterns by `pattern_id` (`secondaryViewCount >= 1`) and emits `relaxationHints` when strict `formats: ['projector']` + `skills: ['advanced_couture']` yields 0 matches.
    - Repeating `analyzeAndSearch` with identical image bytes hits `query_sessions` by `image_sha256` with `0` additional `VisionExtractor` calls.
 
+4. Test hard filters with bust and hip split across two bands so neither band qualifies. Apply OR within each facet and AND across facets. A top queried on skirt focus gets a typed 422 response and an available focus choice. Log one search event per successful analyze, archetype or refinement, including cache hits.
+5. Exercise no garment (422, zero session writes), unsupported lower-body-only input (422, category guidance), a usable partial upper body (session and bodice/sleeve refinement), and a cropped or ambiguous silhouette (both categories eligible). Never invent a dress or top profile to satisfy a database constraint.
+6. Test the actual rate-limit boundaries, UTC-window reset and `Retry-After` using a controlled clock. Debit IP windows once at the HTTP boundary. Test that valid cached analyses, archetypes and refinements make zero paid calls after the spend cap trips. Only cold misses enter Task 4's budget wrapper.
+7. For a full-silhouette top with identical geometry but both substrate and closure mismatched, assert a structural score of 0.90. The current division by 0.80 inflates those two slots as well. Keep their combined 0.10 and redistribute the missing skirt share only across silhouette, bodice and sleeves (scale their 0.70 total to 0.90).
+8. The URL transport must connect to a validated public address for each hop and preserve HTTPS hostname verification. Bound the entire fetch, streamed byte count and decoded pixels. Use an injected resolver/transport in offline tests and assert the chosen address is the one used to connect. Cover upload size, timeouts and content validation before AI work.
+
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/search/image-security-and-ranker.test.ts`
+Run: `bun run test tests/search/image-security-and-ranker.test.ts`
 Expected: FAIL with missing `@/modules/search/*` modules.
 
 - [ ] **Step 3: Implement `image-ingest.ts`, `rate-limit.ts`, `hybrid-ranker.ts`, and `analyze-service.ts`**
 
 - In `image-ingest.ts`: verify magic bytes (`FF D8 FF` JPEG, `89 50 4E 47` PNG, `RIFF....WEBP` WebP, `....ftypavif` AVIF; explicitly reject `ftypheic`/`ftypheix` and anything else with `415`), apply optional normalized `cropBox` after `sharp(raw).rotate()` (so crop coordinates align with upright display!), resize `fit: 'inside', width: 1280, height: 1280, withoutEnlargement: true`, output `.webp({ quality: 82 })`, compute `sha256`. In `fetchDirectImageUrlSafe`, use `redirect: 'manual'`, validate URL + DNS lookup against private IPv4/IPv6 CIDR ranges on hop 0 and at most 1 redirect hop, stream up to `8 * 1024 * 1024` bytes with `AbortSignal.timeout(3000)`.
-- In `hybrid-ranker.ts`: inside a transaction, `SET LOCAL hnsw.iterative_scan = relaxed_order;`, fetch `query_sessions` row (`expires_at > now()`, else throw `404 SESSION_EXPIRED`), query top 40 `pattern_views` joined to `patterns`, `makers`, and matching `pattern_size_bands` (`EXISTS` predicate from Spec §5.4.3), compute `combineHybridScore(vecSim, computeStructuralScore(...))`, collapse by `pattern_id`, select best matching `pattern_size_bands` row for `userBustIn`/`userHipIn` (falling back to `is_default = true`), attach `buildExplanationChips`, and run single-facet relaxation counts when `results.length === 0`.
-- In `analyze-service.ts`: check rate limit + daily budget, check `query_sessions` cache by `(image_sha256, crop_box)`, run `VisionExtractor` (`mode: 'live_query'`) + `serializeCanonicalRegions` + `TextEmbedder` (`RETRIEVAL_QUERY`), insert `query_sessions` + `search_events`, probabilistically `DELETE FROM query_sessions WHERE expires_at < now()`, and return `executeSessionSearch(...)`.
+- In `hybrid-ranker.ts`: inside a transaction, `SET LOCAL hnsw.iterative_scan = relaxed_order;`, fetch `query_sessions` row (`expires_at > now()`, else throw `404 SESSION_EXPIRED`), retrieve up to 40 distinct view IDs by region cosine distance, using the approved maker, published pattern and a matching size band (`EXISTS` predicate from Spec §5.4.3), compute `combineHybridScore(vecSim, computeStructuralScore(...))`, collapse by `pattern_id`, return the best 18 distinct patterns with stable tie-breaking, select a band satisfying both measurements, preferring the qualifying default then a stable ID. With both measurements unset, prefer the default across all bands, attach `buildExplanationChips`, and run single-facet relaxation counts when `results.length === 0`.
+- In `analyze-service.ts`: after route-level rate limiting, normalize and check unexpired sessions by normalized image digest and effective crop, on a miss run the budgeted `VisionExtractor` (`mode: 'live_query'`) + `serializeCanonicalRegions` + `TextEmbedder` (`RETRIEVAL_QUERY`), insert `query_sessions` + `search_events`, probabilistically `DELETE FROM query_sessions WHERE expires_at < now()`, and return `executeSessionSearch(...)`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run tests/search/image-security-and-ranker.test.ts`
+Run: `bun run test tests/search/image-security-and-ranker.test.ts tests/taxonomy/scoring-and-chips.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit and submit for task review**
 
 ```bash
-git add src/modules/search tests/search
+git add src/modules/search tests/search src/modules/taxonomy/scoring.ts tests/taxonomy/scoring-and-chips.test.ts
 git commit -m "feat(search): add SSRF/EXIF-safe image ingest, IP rate limiter, and hybrid pgvector ranker"
 ```
 
@@ -556,69 +310,41 @@ git commit -m "feat(search): add SSRF/EXIF-safe image ingest, IP rate limiter, a
 - Consumes: `@/modules/search/*`, `@/lib/db`
 - Produces:
   - `buildTrackedDestinationUrl(productUrl: string, utmCampaignSlug: string, affiliateQueryParam?: string | null): string`
+  - `CuratedArchetypeSummary = { slug: string; title: string; caption: string; imageUrl: string; defaultFocusRegion: FocusRegion }`.
   - `listActiveArchetypes(db: Queryable): Promise<CuratedArchetypeSummary[]>`
   - `createSessionFromArchetype(db: Queryable, slug: string): Promise<string>` (inserts `query_sessions` from `curated_archetypes`, zero LLM calls)
-  - `POST /api/v1/search/analyze` (`multipart/form-data` `file` + optional `focusRegion`/`cropBox`/`filters`, OR JSON `{ imageUrl | archetypeSlug, focusRegion, filters }`)
+  - `POST /api/v1/search/analyze` (`multipart/form-data` `file` + optional `focusRegion`/`cropBox`/`filters`, OR JSON `{ imageUrl, cropBox?, focusRegion, filters } or { archetypeSlug, focusRegion, filters }`)
   - `POST /api/v1/search/query` (JSON `{ querySessionId, focusRegion, filters }`)
   - `GET /go/[pattern_id]?band=&q=&v=&pos=&region=` (`302` redirect + async `outbound_clicks` insert)
   - `preprocessGarmentFileInBrowser(file: File, cropBox?: CropBox | null): Promise<{ blob: Blob; previewDataUrl: string }>`
 
 - [ ] **Step 1: Write failing tests for URL merging, archetype instant search, API routes, and `/go/[pattern_id]`**
 
-Create `tests/api/public-routes-and-redirect.test.ts`:
+In `tests/api/public-routes-and-redirect.test.ts` exercise exported handlers with real Request objects and injected dependencies.
 
-```typescript
-import { describe, expect, it } from 'vitest';
-import { buildTrackedDestinationUrl } from '@/modules/catalog/outbound-url';
-
-describe('Outbound URL builder & public API routes', () => {
-  it('preserves existing query params and #hash fragments when merging UTM and affiliate params (Review Focus #5)', () => {
-    const out = buildTrackedDestinationUrl(
-      'https://atelier.example/products/solene?variant=991#size-chart',
-      'seamlens_v1',
-      'ref=seamlens&partner=pilot'
-    );
-    const parsed = new URL(out);
-    expect(parsed.searchParams.get('variant')).toBe('991');
-    expect(parsed.searchParams.get('utm_source')).toBe('seamlens');
-    expect(parsed.searchParams.get('utm_medium')).toBe('visual_search');
-    expect(parsed.searchParams.get('utm_campaign')).toBe('seamlens_v1');
-    expect(parsed.searchParams.get('ref')).toBe('seamlens');
-    expect(parsed.hash).toBe('#size-chart');
-  });
-
-  it('POST /api/v1/search/analyze with archetypeSlug creates session with 0 Vision calls and <80ms /query follow-up', async () => {
-    // Assert 200 response with querySessionId + ranked results; follow-up /api/v1/search/query switches focusRegion
-  });
-
-  it('GET /go/[pattern_id]?band=<curveBandId> returns 302 to Curve URL, records outbound_clicks, and returns 404 on unpublished/takedown pattern', async () => {
-    // Assert 302 Location header points to curve product_url with UTM tags; takedown pattern returns 404
-  });
-
-  it('rejects browser HEIC files cleanly in client preflight before network upload (Review Focus #1)', async () => {
-    // Assert File with type 'image/heic' or '.heic' extension throws user-friendly client validation error
-  });
-});
-```
+- A file or URL creates one session and debits each applicable IP bucket once. Reject missing or conflicting sources, invalid filters and out-of-bounds crop coordinates with 400. Map size, format, HTML, expiration, throttling and budget failures to 413/415/422/404/429/503 with a stable JSON `code`. Check the 429 retry header. Use the trusted platform client address and a deployment-provided salt.
+- A curated archetype returns results at the cap, consumes the read bucket, and uses zero model calls. A follow-up query changes focus without inference. Measure refinement latency on staging under Task 10.
+- Use a known asymmetric fixture. Cropping a browser upload once and cropping the equivalent URL image on the server select the same region. When the browser submits a cropped blob, omit crop coordinates from that request. Reject HEIC before upload. Keep multipart requests under the deployment body limit through client resizing and byte-limit checks. The direct fetch has its own 8 MiB stream limit. [Vercel function limits](https://vercel.com/docs/functions/limitations)
+- Select a Curve band and verify 302, the exact maker product URL, preservation of existing query parameters and fragment, and one attributed click after executing the queued callback. Foreign band/view IDs cannot change destination or attribution. An unpublished pattern or suspended maker returns 404. Accept only validated HTTP(S) maker destinations and keep redirects uncached so a takedown takes effect on the next click.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/api/public-routes-and-redirect.test.ts`
+Run: `bun run test tests/api/public-routes-and-redirect.test.ts`
 Expected: FAIL with missing route/catalog files.
 
 - [ ] **Step 3: Implement `outbound-url.ts`, `archetypes-repo.ts`, Route Handlers, and `client-canvas-preprocess.ts`**
 
 - Implement `buildTrackedDestinationUrl` using `new URL(productUrl)` and `URLSearchParams(affiliateQueryParam)` so existing query strings and `#hash` fragments never break.
 - Implement `POST /api/v1/search/analyze` (`export const runtime = 'nodejs'; export const maxDuration = 30;`) enforcing `10/min` and `40/hr` IP rate limits on live Vision requests (exempting `archetypeSlug` from Vision rate/budget gates, using the `120/min` query bucket instead), and `POST /api/v1/search/query` enforcing `120/min`.
-- Implement `GET /go/[pattern_id]/route.ts` (`status = 'published'` AND `vetted_status = 'approved'`), resolving `?band=` against `pattern_size_bands` (`pattern_id = $1`, fallback `is_default = true`), scheduling `INSERT INTO outbound_clicks` via `after()` from `next/server` (with inline `await` fallback in unit-test environment), and returning `NextResponse.redirect(destinationUrl, 302)`.
+- Implement `GET /go/[pattern_id]/route.ts` (`status = 'published'` AND `vetted_status = 'approved'`), resolving `?band=` against `pattern_size_bands` (`pattern_id = $1`, fallback `is_default = true`), scheduling `INSERT INTO outbound_clicks` via `after()` from `next/server` (inject a callback scheduler in tests), and returning `NextResponse.redirect(destinationUrl, 302)`.
 - Implement `preprocessGarmentFileInBrowser` rejecting `.heic`/`.heif` with a clear prompt to upload JPEG/PNG/WebP/screenshot, drawing via `createImageBitmap` (`imageOrientation: 'from-image'`) onto `<canvas>` (`<=1280px`), and exporting `image/webp` at `0.82`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run tests/api/public-routes-and-redirect.test.ts`
+Run: `bun run test tests/api/public-routes-and-redirect.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit and submit for task review**
 
 ```bash
 git add src/modules/catalog src/modules/search/client-canvas-preprocess.ts src/app/api/v1 src/app/go tests/api
@@ -630,6 +356,7 @@ git commit -m "feat(api): add search analyze/query endpoints, tracked /go redire
 ### Task 7: Permissioned Batch Catalog Ingestion Pipeline (Shopify JSON & Canonical CSV)
 
 **Files:**
+- Add `supabase/migrations/202611220004_ingestion_claims.sql` for expiring worker claims, ownership tokens and a stable unique item key within a batch.
 - Create: `src/modules/ingestion/parsers.ts`
 - Create: `src/modules/ingestion/media-pipeline.ts`
 - Create: `src/modules/ingestion/chunk-worker.ts`
@@ -638,6 +365,7 @@ git commit -m "feat(api): add search analyze/query endpoints, tracked /go redire
 **Interfaces:**
 - Consumes: `parseMeasurementInches`, `ConstructionProfileV1`, `serializeCanonicalRegions` from `@/modules/taxonomy/*`; `VisionExtractor`, `TextEmbedder`, `recordApiUsage` from `@/modules/vision/*`; `Queryable` from `@/lib/db`
 - Produces:
+  - `IngestionWorkerDeps` supplies the Task 3 database, budgeted Task 4 vision and embedding adapters, a gallery classifier returning image roles grouped by view, and a catalog media writer. Compose these in the Node.js chunk handler. Charge gallery classification to ingestion vision.
   - `RawSizeBandCandidate = { externalProductId: string | null; bandLabel: string; isDefault: boolean; productUrl: string; priceCents: number | null; currency: string; designerSizeLabel: string | null; bustMinIn: number | null; bustMaxIn: number | null; hipMinIn: number | null; hipMaxIn: number | null }`
   - `NormalizedImportDraft = { groupKey: string; title: string; garmentCategoryHint?: 'dress' | 'top' | 'dress_and_top_set'; substrateHint?: SubstrateCompatibility; formatsHint: DeliveryFormat[]; skillHint?: SkillLevel; descriptionHtml: string; imageUrls: Array<{ url: string; roleHint?: 'cover' | 'flat_front' | 'flat_back' }>; sizeBands: RawSizeBandCandidate[]; explicitViews?: Array<{ viewCode: string; viewLabel: string }> }`
   - `parseShopifyProductsJson(json: unknown, storefrontBaseUrl: string): NormalizedImportDraft[]`
@@ -647,38 +375,16 @@ git commit -m "feat(api): add search analyze/query endpoints, tracked /go redire
 
 - [ ] **Step 1: Write failing tests for Straight/Curve Shopify grouping, metric CSV parsing, permission gate, and idempotent chunk execution**
 
-Create `tests/ingestion/parsers-and-worker.test.ts`:
+Use `tests/ingestion/parsers-and-worker.test.ts` with an in-memory database, original media, a fake object store and recording AI adapters.
 
-```typescript
-import { describe, expect, it } from 'vitest';
-import { parseShopifyProductsJson, parseSeamLensCsv } from '@/modules/ingestion/parsers';
-import { enqueueIngestionBatch, processNextIngestionChunk } from '@/modules/ingestion/chunk-worker';
-
-describe('Permissioned Shopify/CSV ingestion & chunked worker', () => {
-  it('groups sibling Shopify Straight ("Solène Dress (Sizes 0-20)") and Curve ("Solène Dress - Curve 14-34") products into 1 NormalizedImportDraft with 2 sizeBands', () => {
-    const drafts = parseShopifyProductsJson(mockShopifySplitProducts, 'https://verveine.example');
-    expect(drafts).toHaveLength(1);
-    expect(drafts[0].sizeBands).toHaveLength(2);
-    expect(drafts[0].sizeBands.map((b) => b.bandLabel)).toEqual(['Straight', 'Curve']);
-  });
-
-  it('converts metric cm ("84 cm", "137 cm") and fractional inches ("33½\\"") in CSV rows into canonical decimal inches (Review Focus #3)', () => {
-    const drafts = parseSeamLensCsv(sampleMetricAndFractionCsv);
-    expect(drafts[0].sizeBands[0].bustMinIn).toBe(33.1);
-    expect(drafts[0].sizeBands[0].hipMaxIn).toBe(53.9);
-  });
-
-  it('refuses to enqueue or process batches for unapproved makers and upserts drafts idempotently on re-import', async () => {
-    await expect(enqueueIngestionBatch(pg, { makerId: pendingMakerId, sourceType: 'csv_upload', sourceDescriptor: 'test.csv', drafts: [], createdBy: adminId }))
-      .rejects.toThrow(/approved/i);
-    // Run processNextIngestionChunk twice on same external_product_id -> asserts 1 pattern row (status = 'draft', human_verified = false), no duplicate pattern_size_bands
-  });
-});
-```
+- Two Shopify sibling listings from one maker produce one design and two distinct bands. A quoted CSV description containing commas or newlines stays in one field. Assert `84 cm → 33.1 in`, `137 cm → 53.9 in` and `33½" → 33.5 in`. Re-import the same CSV with no external product ID and verify stable design, band and view counts.
+- A pending maker cannot enqueue. Suspend an approved maker after enqueue and confirm that processing consumes zero paid calls. Suspend during processing and verify that final draft writes recheck approval.
+- Two workers claiming the same batch cannot complete the same item twice. Simulate interruption after media upload and before draft commit, reclaim the expired claim, and verify stable media keys, one set of bands/views and consistent batch totals. Retrying a failed item updates its existing queue entry.
+- A gallery with front, back, cover, an irrelevant image and two described garment views yields the expected role-to-view assignments. Give explicit CSV roles precedence and prefer flats during extraction. Missing required measurements remain in a reviewable item linked to its draft. A fabricated measurement or a forced insert into a non-null bust column fails this test. Retain candidates in the ingestion payload until the curator supplies valid bounds. An item below 0.80 confidence must appear in the review queue.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/ingestion/parsers-and-worker.test.ts`
+Run: `bun run test tests/ingestion/parsers-and-worker.test.ts`
 Expected: FAIL with missing `@/modules/ingestion/*` modules.
 
 - [ ] **Step 3: Implement `parsers.ts`, `media-pipeline.ts`, and `chunk-worker.ts`**
@@ -687,15 +393,17 @@ Expected: FAIL with missing `@/modules/ingestion/*` modules.
 - In `media-pipeline.ts`: resize approved cover & flat images via `sharp` into `800px` (`-card.webp`) and `1600px` (`-full.webp`) uploaded to `catalog-media/{maker_slug}/{pattern_slug}/...`.
 - In `chunk-worker.ts`: verify `makers.vetted_status === 'approved'` before both enqueue and chunk execution; claim up to `chunkSize = 3` `'queued'` items (`FOR UPDATE SKIP LOCKED`), run `VisionExtractor` (`mode: 'catalog_ingestion'`, passing technical flats first), serialize & embed all 4 regions, upsert `patterns (status = 'draft')`, `pattern_size_bands` (`ON CONFLICT (maker_id, external_product_id) DO UPDATE`), and `pattern_views (human_verified = false)`.
 
+- Commit the claim before external work. Fetch approved catalog sources and gallery media through a bounded HTTPS transport with the same address policy as Task 5. Task 7 can develop against an injected transport in parallel and wire the shared implementation at integration. Use deterministic Storage keys. In a short transaction, verify claim ownership and maker status, then persist the draft, review flags, item stage and counts together. Re-importing a curated or published design must preserve its verified fields and publication state for explicit admin review.
+
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run tests/ingestion/parsers-and-worker.test.ts`
+Run: `bun run test tests/ingestion/parsers-and-worker.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit and submit for task review**
 
 ```bash
-git add src/modules/ingestion tests/ingestion
+git add src/modules/ingestion supabase/migrations/202611220004_ingestion_claims.sql tests/ingestion
 git commit -m "feat(ingestion): add Shopify Straight/Curve grouping parser, metric CSV parser, and chunked draft worker"
 ```
 
@@ -721,38 +429,16 @@ git commit -m "feat(ingestion): add Shopify Straight/Curve grouping parser, metr
 
 - [ ] **Step 1: Write failing component interaction tests for Upload Dock, Part-Focus, Filter Sliders, Flat Toggle & Session Recovery**
 
-Create `tests/ui/discovery-flow.test.tsx` (`// @vitest-environment jsdom`):
+Use `tests/ui/discovery-flow.test.tsx` in jsdom. Exercise the rendered components through their labeled controls.
 
-```typescript
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { PatternMatchCard } from '@/components/pattern-match-card';
-import { SewistFilterBar } from '@/components/sewist-filter-bar';
-import { DiscoveryWorkspace } from '@/components/discovery-workspace';
-
-describe('Tactile Atelier public discovery UI', () => {
-  it('toggles Cover Photo <-> Technical Flat (and Front/Back flat switch when flatBackImageUrl exists), hiding toggle when flatFrontImageUrl is null', () => {
-    // Render card with flatFrontImageUrl + flatBackImageUrl -> click "Technical Flat" -> shows Front flat + "Back Flat" switch -> click "Back Flat" -> swaps src
-    // Render card with flatFrontImageUrl: null -> queryByRole('button', { name: /technical flat/i }) is null
-    // Verify CTA href points directly to `/go/${patternId}?band=${matchedSizeBandId}&...` (no /patterns/[slug] link)
-  });
-
-  it('sends single-value userBustIn / userHipIn on slider change and resets to null on "Any"', () => {
-    const onChange = vi.fn();
-    render(<SewistFilterBar filters={{}} onChange={onChange} />);
-    fireEvent.change(screen.getByLabelText(/my full bust/i), { target: { value: '46' } });
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ userBustIn: 46 }));
-  });
-
-  it('switches Part-Focus pills via /api/v1/search/query and transparently re-submits cached blob to /analyze on 404 SESSION_EXPIRED', async () => {
-    // Mock /api/v1/search/query returning 404 { code: 'SESSION_EXPIRED' } once, then /api/v1/search/analyze returning fresh querySessionId -> UI updates seamlessly
-  });
-});
-```
+- Choose an archetype or submit a prepared upload, navigate to `/search?q=<sessionId>`, and assert that the initial focus, reference preview and first results survive navigation. A matched band CTA carries the pattern, band and view from the displayed card.
+- Toggle cover/front/back and verify the actual image URL. Hide unavailable flats. Show the union size range on the card and link to the specific qualifying band. Move each measurement control, then choose Any and inspect the outgoing JSON for a single number followed by null.
+- Make two refinements and resolve the older request last. Only the latest choice can update the grid. For an expired session recover once from the retained upload, archetype slug or URL. Preserve the current filters and focus. If the original source is unavailable or recovery fails, offer a fresh upload.
+- Show the Dresses & Tops scope message for unsupported garments, upper-body focus choices when available, crop guidance for multiple garments, and actionable filter relaxation hints. At the daily cap a user can still start from an archetype.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/ui/discovery-flow.test.tsx`
+Run: `bun run test tests/ui/discovery-flow.test.tsx`
 Expected: FAIL with missing components.
 
 - [ ] **Step 3: Implement Tactile Atelier styling and public discovery components (zero `mockups/` imports)**
@@ -763,10 +449,10 @@ Expected: FAIL with missing components.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run tests/ui/discovery-flow.test.tsx`
+Run: `bun run test tests/ui/discovery-flow.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit and submit for task review**
 
 ```bash
 git add src/app/globals.css src/app/layout.tsx src/app/page.tsx src/app/search src/components tests/ui
@@ -795,62 +481,40 @@ git commit -m "feat(ui): build Tactile Atelier upload dock, part-focus workspace
 - Consumes: `@/modules/taxonomy/*`, `@/modules/vision/*`, `@/modules/ingestion/*`, `@/lib/db`, `@/lib/supabase/server`
 - Produces:
   - `requireAdminUser(db: Queryable): Promise<{ userId: string; email: string; role: 'curator' | 'engineer' }>`
-  - `savePatternViewCuration(deps, input: { viewId: string; constructionProfile: ConstructionProfileV1; sizeBands: SizeBandInput[]; substrateType: SubstrateCompatibility; formats: DeliveryFormat[]; skillLevel: SkillLevel; adminUserId: string }): Promise<void>`
+  - `SizeBandInput` carries the optional existing band ID, label, default flag, product URL, price, currency, designer size label, and validated bust/hip bounds from the Task 3 schema. Resolve maker and parent IDs from the view. `CurationDeps` contains the database and budgeted document embedder.
+  - `TelemetrySummary` returns searches, clicks, outbound CTR (clicks / searches, zero when empty), p50/p95 search latency, per-maker click counts and current UTC-day spend. Count successful searches once from `search_events`.
+  - `savePatternViewCuration(deps: CurationDeps, input: { viewId: string; constructionProfile: ConstructionProfileV1; sizeBands: SizeBandInput[]; substrateType: SubstrateCompatibility; formats: DeliveryFormat[]; skillLevel: SkillLevel; expectedUpdatedAt: string }): Promise<void>`
   - `setPatternPublishStatus(db: Queryable, patternId: string, status: 'draft' | 'published' | 'unpublished' | 'takedown'): Promise<void>`
   - `mergeSizeBandIntoPattern(db: Queryable, sourcePatternId: string, targetPatternId: string, bandLabel: string): Promise<void>`
   - `getTelemetrySummary(db: Queryable, windowDays: 7 | 30): Promise<TelemetrySummary>`
 
 - [ ] **Step 1: Write failing tests for Admin allowlist guard, Save & Re-Embed sync, maker suspension cascade, and CTR telemetry**
 
-Create `tests/admin/curation-and-auth.test.ts`:
+Use `tests/admin/curation-and-auth.test.ts` to drive the protected actions and chunk handler as well as the page guard.
 
-```typescript
-import { describe, expect, it } from 'vitest';
-import { savePatternViewCuration, setPatternPublishStatus, mergeSizeBandIntoPattern } from '@/modules/admin/curation-actions';
-import { getTelemetrySummary } from '@/modules/admin/telemetry-repo';
-
-describe('Atelier Admin curation actions, vector sync, and telemetry', () => {
-  it('blocks authenticated Supabase users who are not in admin_users allowlist', async () => {
-    // Assert requireAdminUser throws 403 Forbidden when auth user email/id is absent from admin_users
-  });
-
-  it('regenerates canonical_texts and all non-null 768-d vectors atomically when Steph edits construction_profile', async () => {
-    // Edit neckline_type from 'scoop' to 'square' via savePatternViewCuration -> assert canonical_texts.bodice_neckline contains 'square', vec_bodice updated, human_verified = true
-  });
-
-  it('merges a separate Curve draft pattern into a Straight pattern as a second pattern_size_bands row and removes duplicate parent', async () => {
-    // Call mergeSizeBandIntoPattern -> target pattern now has 2 pattern_size_bands rows; source duplicate deleted
-  });
-
-  it('immediately hides all maker patterns from executeSessionSearch when maker vetted_status is set to suspended or pattern is set to takedown', async () => {
-    // Suspend maker -> executeSessionSearch returns 0 patterns from that maker without deleting audit history
-  });
-
-  it('computes 7d/30d search volume, p50/p95 latency, outbound CTR, per-maker clicks, and daily spend', async () => {
-    const summary = await getTelemetrySummary(pg, 7);
-    expect(summary.outboundCtr).toBeGreaterThanOrEqual(0);
-    expect(summary.makerClicks).toBeInstanceOf(Array);
-  });
-});
-```
+- Unauthenticated requests fail or redirect to login. A signed-in user absent from `admin_users` receives 403 from direct mutation and chunk requests. A curator can complete the intended action. Resolve identity from verified Supabase auth on the server and record that user's ID in the audit fields.
+- Edit a neckline and verify that the saved profile, canonical strings, normalized vectors and reviewer all change together. An embedding failure, stale revision or failed band validation preserves the previous complete version. Verify admin re-embedding is budgeted and counted once.
+- Merge a duplicate draft within the same maker and verify two bands on the target. Reject cross-maker merges and preserve referenced audit rows. Publish, unpublish, suspend and takedown are immediately reflected in search and redirect checks.
+- Verify that the queue includes incomplete imports, an admin can fill missing band bounds, and a failed item can be retried without creating a second item. Supply known search/click fixtures over 7 and 30 days and assert exact counts, per-maker clicks, latency percentiles, daily spend, CTR and a zero-search denominator.
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/admin/curation-and-auth.test.ts`
+Run: `bun run test tests/admin/curation-and-auth.test.ts`
 Expected: FAIL with missing `@/modules/admin/*` modules.
 
 - [ ] **Step 3: Implement `auth.ts`, `curation-actions.ts`, `telemetry-repo.ts`, `middleware.ts`, and `/admin/*` screens**
 
-- Implement `requireAdminUser` checking Supabase session + `SELECT user_id, email, role FROM admin_users WHERE user_id = $1`, and `src/middleware.ts` guarding `/admin/:path*` (except `/admin/login`) and `/api/admin/:path*`.
+- Implement `requireAdminUser` in Node.js server actions and handlers, checking the verified Supabase user + `SELECT user_id, email, role FROM admin_users WHERE user_id = $1`, and implement a runtime-compatible session gate in `src/middleware.ts` guarding `/admin/:path*` (except `/admin/login`) and `/api/admin/:path*`.
 - Implement `savePatternViewCuration` validating `ConstructionProfileV1Schema`, running `serializeCanonicalRegions` + `TextEmbedder.embedRegions(..., 'RETRIEVAL_DOCUMENT')`, updating `pattern_views` (`human_verified = true`, `verified_by`, `verified_at`), and upserting `pattern_size_bands` + `patterns` inside `withTransaction`.
+- Perform the verified-user and allowlist check at every write entry point before using service credentials. Keep pg and storage-service imports out of Edge middleware. Use email/password for the v1 admin login. Load raw source fields and missing measurements from the import item for the editor. Wire per-item retry and same-maker band merge controls. Compare the saved revision during the transaction to prevent a slow embed response from overwriting a newer edit.
 - Build `/admin/login`, `/admin/makers` (opt-in permission note + UTM/affiliate + approve/suspend), `/admin/imports` (CSV upload + Shopify URL trigger polling `POST /api/admin/ingestion/process-chunk` (`maxDuration = 60`)), `/admin/patterns` (queue flagging `ai_confidence < 0.80` or missing bust/hip), `/admin/patterns/[id]` (split-view zoomable Technical Flat + Styled Photo vs. structured tag & multi-band size editor + Publish/Unpublish/Takedown), and `/admin/telemetry`.
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx vitest run tests/admin/curation-and-auth.test.ts`
+Run: `bun run test tests/admin/curation-and-auth.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit and submit for task review**
 
 ```bash
 git add src/modules/admin src/middleware.ts src/app/admin src/app/api/admin tests/admin
@@ -859,13 +523,13 @@ git commit -m "feat(admin): add Atelier curation cockpit, auth allowlist, automa
 
 ---
 
-### Task 10: Offline Benchmark Evaluation Harness & Smoke Release Gate (`pnpm eval:benchmark`)
+### Task 10: Offline Benchmark Evaluation Harness & Smoke Release Gate (`bun run eval:benchmark`)
 
 **Files:**
 - Create: `src/modules/eval/metrics.ts`
-- Create: `eval/fixtures/smoke-v1/manifest.json`
+- Create: `eval/fixtures/smoke-v1/manifest.json` and its referenced query images and profile fixtures
 - Create: `scripts/eval/run-benchmark.ts`
-- Modify: `package.json` (add `"db:seed": "tsx scripts/db-seed.ts"` and `"eval:benchmark": "tsx scripts/eval/run-benchmark.ts"`)
+- Modify: `package.json` (add `"db:seed": "bun scripts/db-seed.ts"` and `"eval:benchmark": "bun scripts/eval/run-benchmark.ts"`)
 - Test: `tests/eval/benchmark-harness.test.ts`
 
 **Interfaces:**
@@ -911,23 +575,22 @@ describe('Benchmark scorecard math & 15-query smoke suite', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx vitest run tests/eval/benchmark-harness.test.ts`
+Run: `bun run test tests/eval/benchmark-harness.test.ts`
 Expected: FAIL with missing `@/modules/eval/metrics` and `scripts/eval/run-benchmark.ts`.
 
 - [ ] **Step 3: Implement `metrics.ts`, `eval/fixtures/smoke-v1/manifest.json`, and `scripts/eval/run-benchmark.ts`**
 
+- Use stable pattern slugs for the authored smoke manifest. At run startup resolve slugs to the current database IDs (the seed generates UUIDs). Fail on unknown labels, missing query images, an empty suite, missing runs or duplicates. Explicitly record zero hits and failures so a partial run cannot improve the reported score. Supply reproducible original query images and expected extractor outputs for all 15 smoke cases. Their fake extractor maps the fixture input to a profile. Compute all embeddings with the same deterministic function as the Stage A seed, then run the real session, filtering and ranking code.
 - Implement `evaluateBenchmarkRun` computing Top-3 hit rate (`any pattern in rankedPatternIds.slice(0, 3) has grade >= 1`), Print-Trap Contamination@3 (`any pattern in slice(0, 3) is in printTrapPatternIds`), reciprocal rank (`1 / (firstHitIdx + 1)`), graded `NDCG@5` using gain `(2^grade - 1) / log2(rank + 1)`, per-`FocusRegion` breakdowns, p50/p95 latency, and release gates (`top3RelevanceRate >= 0.85`, `printTrapContaminationAt3 === 0`, `latencyP95Ms < 3500`).
 - Create `eval/fixtures/smoke-v1/manifest.json` with 15 synthetic benchmark queries spanning `full_silhouette` dresses & tops, `bodice_neckline` cross-category matching, `sleeves_armscye`, `skirt_hemline`, Straight vs. Curve measurement filters, and floral/plaid print-trap negative pairs.
-- Implement `scripts/eval/run-benchmark.ts` supporting `pnpm eval:benchmark --smoke` (in-process `PGlite` + deterministic smoke fixtures for CI/offline verification, or live Gemini API when `--live-ai` is passed) and `pnpm eval:benchmark --dataset eval/benchmark-v1` (live production pipeline against staging/local DB for Steph's 50+ query launch gate), writing a Markdown + JSON scorecard to `eval/reports/` and exiting `1` if `!scorecard.gatesPassed`.
+- Implement `bun run eval:benchmark --smoke` with a fresh migrated PGlite database and zero network dependencies. Implement `bun run eval:benchmark --dataset eval/benchmark-v1` for the permissioned staging catalog. Use the same live embedding model and dimensions on catalog and query sides. Start cold for each measured upload. Record grade-1/grade-2 relevance, print-trap labels, model IDs, fixture count, and whether timing is offline, server-only or browser end-to-end. Emit Markdown and JSON scorecards and return exit 1 when a required gate fails.
+- For Stage B, verify the 15–25 permissioned houses, 300–500 active Dress/Top views and 50–100 human-graded queries from the spec. Require ≥85% Top-3 relevance, exactly zero trap hits in the Top-3, cold upload-to-render p95 <3,500 ms and refinement <100 ms with zero model calls. Measure browser submission through painted results on staging. Use cold queries and separately timed repeated refinements. Keep the 80 ms API refinement target visible alongside the browser measurement. Mark the live release decision pending while the catalog, human labels or timing evidence are missing.
 
-- [ ] **Step 4: Run full test suite and production Next.js typecheck/build**
+- [ ] **Step 4. Verify the integrated application.** Run `bun run test`, `bun run typecheck`, `bun run build` and `bun run eval:benchmark --smoke`. All four must exit 0. On a fresh migrated PostgreSQL/pgvector staging database, exercise upload → search → matching-band redirect and approved import → curate → publish → takedown using the configured Supabase Auth and Storage. Check that allowlist, RLS, worker retry, media loading and click attribution behave through their real entry points. Record Stage A and Stage B results separately.
 
-Run: `npx vitest run && npm run build`
-Expected: All test suites PASS and Next.js production build completes with zero TypeScript or route errors.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 5: Commit and submit for task review**
 
 ```bash
-git add src/modules/eval eval scripts/eval package.json tests/eval
+git add src/modules/eval eval/fixtures scripts/eval package.json tests/eval
 git commit -m "feat(eval): add offline benchmark evaluation CLI, metrics scorecard, and 15-query smoke gate"
 ```
