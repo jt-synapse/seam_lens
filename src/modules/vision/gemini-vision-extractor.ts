@@ -12,7 +12,7 @@ import { rethrowGeminiError } from './gemini-errors';
 import { withBudgetedUsage } from './usage-ledger';
 
 // Gemini 3.5 Flash-Lite's hard input ceiling covers text, all images and the structured schema.
-const MAX_INPUT_TOKENS = 1_048_576;
+export const MAX_INPUT_TOKENS = 1_048_576;
 const LIVE_OUTPUT_TOKENS = 4096;
 const INGEST_OUTPUT_TOKENS = 8192;
 const MAX_IMAGES = 8;
@@ -86,8 +86,8 @@ function toGeminiJsonSchema(schema: z.ZodTypeAny): Record<string, unknown> {
 
 const responseJsonSchema = toGeminiJsonSchema(ResponseEnvelope);
 
-type VisionResponse = Pick<GenerateContentResponse, 'text' | 'usageMetadata'>;
-type VisionClient = {
+export type VisionResponse = Pick<GenerateContentResponse, 'text' | 'usageMetadata'>;
+export type VisionClient = {
   models: { generateContent(request: GenerateContentParameters): Promise<VisionResponse> };
 };
 
@@ -95,7 +95,7 @@ function validCount(value: number | undefined): value is number {
   return value !== undefined && Number.isSafeInteger(value) && value >= 0;
 }
 
-function getTokenUsage(usage: VisionResponse['usageMetadata'], maxOutputTokens: number) {
+export function getTokenUsage(usage: VisionResponse['usageMetadata'], maxOutputTokens: number) {
   const inputTokens = validCount(usage?.promptTokenCount) ? usage.promptTokenCount : MAX_INPUT_TOKENS;
   if (validCount(usage?.candidatesTokenCount) && validCount(usage?.thoughtsTokenCount)) {
     return { inputTokens, outputTokens: usage.candidatesTokenCount + usage.thoughtsTokenCount };
