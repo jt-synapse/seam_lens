@@ -6,11 +6,12 @@ export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   try {
+    const startedAt = performance.now();
     const { querySessionId, focusRegion, filters } = await readQueryRequest(request);
     const db = getDbPool();
     await admitPublicSearch(db, request, false);
     return Response.json(await executeLoggedSessionSearch(db, querySessionId,
-      focusRegion ?? 'full_silhouette', filters, 'filter_refinement'));
+      focusRegion ?? 'full_silhouette', filters, 'filter_refinement', startedAt));
   } catch (error) {
     return publicSearchError(error);
   }

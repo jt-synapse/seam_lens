@@ -229,7 +229,7 @@ export async function executeSessionSearch(
     await tx.query('SET LOCAL hnsw.iterative_scan = relaxed_order');
     const { rows: [session] } = await tx.query<SessionRow>(
       `SELECT query_status, extracted_profile, warnings,
-              crop_box IS NOT NULL AS has_crop, ${column}::text AS vector
+              (crop_box IS NOT NULL OR client_cropped) AS has_crop, ${column}::text AS vector
        FROM query_sessions WHERE id = $1 AND expires_at > now()`,
       [querySessionId],
     );

@@ -3,6 +3,9 @@ import type { SearchFilters } from './hybrid-ranker';
 import type { CropBox } from './image-ingest';
 import { MAX_UPLOAD_BYTES } from './upload-limits';
 
+// Prepared blobs can be resubmitted without retaining the original image or crop coordinates.
+const croppedBlobs = new WeakSet<Blob>();
+
 export async function preprocessGarmentFileInBrowser(file: File, cropBox?: CropBox | null):
   Promise<{ blob: Blob; previewDataUrl: string }> {
   if (/\.hei[cf]$/i.test(file.name) || /^image\/hei[cf](?:-sequence)?$/i.test(file.type)) {
@@ -40,6 +43,7 @@ export async function preprocessGarmentFileInBrowser(file: File, cropBox?: CropB
       reader.onerror = () => reject(new Error('Could not read the garment preview.'));
       reader.readAsDataURL(blob);
     });
+    if (crop.width < 1 || crop.height < 1) croppedBlobs.add(blob);
     return { blob, previewDataUrl };
   } finally {
     bitmap.close();
@@ -50,6 +54,7 @@ export function buildPreparedUploadForm(blob: Blob, focusRegion: FocusRegion, fi
   if (blob.size > MAX_UPLOAD_BYTES) throw new Error('Choose a smaller image or crop closer to the garment.');
   const form = new FormData();
   form.set('file', blob, 'garment.webp');
+  if (croppedBlobs.has(blob)) form.set('cropApplied', 'true');
   form.set('focusRegion', focusRegion);
   form.set('filters', JSON.stringify(filters));
   return form;

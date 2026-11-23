@@ -9,6 +9,7 @@ import * as vision from '@/modules/vision/gemini-vision-extractor';
 import * as embeddings from '@/modules/vision/gemini-text-embedder';
 import { BudgetExceededError } from '@/modules/vision/usage-ledger';
 import * as ingest from '@/modules/search/image-ingest';
+import * as http from '@/modules/search/public-http';
 import { deterministicTextToVector768, seedSyntheticCatalog } from '../../supabase/seed/synthetic-catalog';
 import { listActiveArchetypes } from '@/modules/catalog/archetypes-repo';
 import { buildTrackedDestinationUrl } from '@/modules/catalog/outbound-url';
@@ -46,7 +47,7 @@ const sessionCount = async () => (await db.query<{ n: number }>('SELECT count(*)
 
 beforeAll(async () => {
   db = new PGlite({ extensions: { vector } });
-  for (const name of ['202611220001_init_seamlens_v1.sql', '202611220002_catalog_integrity.sql', '202611220003_ai_budget.sql']) {
+  for (const name of ['202611220001_init_seamlens_v1.sql', '202611220002_catalog_integrity.sql', '202611220003_ai_budget.sql', '202611220007_search_session_crop.sql']) {
     await db.exec(await readFile(new URL('../../supabase/migrations/' + name, import.meta.url), 'utf8'));
   }
   await seedSyntheticCatalog(db);
@@ -66,17 +67,21 @@ beforeEach(async () => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
 afterAll(async () => db?.close());
 
-it('creates one session from a cold URL and reuses it for a file with no provider construction on cache hit', async () => {
+async function useDressModelFixture() {
   const { rows: [archetype] } = await db.query<{ extracted_profile: import('@/modules/taxonomy/construction-profile').ConstructionProfileV1 }>(
     'SELECT extracted_profile FROM curated_archetypes WHERE slug = $1', [slug]);
-  vi.spyOn(ingest, 'fetchDirectImageUrlSafe').mockResolvedValue(Buffer.from(image));
-  vi.mocked(vision.createGeminiVisionExtractor).mockReturnValueOnce({ extract: async () => ({
+  vi.mocked(vision.createGeminiVisionExtractor).mockReturnValue({ extract: async () => ({
     status: 'ok', profile: archetype.extracted_profile, warnings: [], aiConfidence: 1, inputTokens: 1, outputTokens: 1,
   }) });
   const v = deterministicTextToVector768('bodice');
-  vi.mocked(embeddings.createGeminiTextEmbedder).mockReturnValueOnce({ embedRegions: async () => ({
+  vi.mocked(embeddings.createGeminiTextEmbedder).mockReturnValue({ embedRegions: async () => ({
     vectors: { full: v, bodice: v, sleeves: v, skirt: v }, inputTokens: 1,
   }) });
+}
+
+it('creates one session from a cold URL and reuses it for a file with no provider construction on cache hit', async () => {
+  await useDressModelFixture();
+  vi.spyOn(ingest, 'fetchDirectImageUrlSafe').mockResolvedValue(Buffer.from(image));
   const first = await analyze(json({ imageUrl: 'https://maker.example/dress.png' }));
   expect(first.status).toBe(200);
   const form = new FormData();
@@ -131,6 +136,10 @@ it('validates exclusive sources, typed fields and crop bounds before debit', asy
   const form = new FormData();
   form.append('file', new Blob(['foo']), 'a.jpg');
   form.append('archetypeSlug', slug);
+  await expectError(await analyze(upload(form)), 400, 'INVALID_INPUT');
+  form.delete('archetypeSlug');
+  form.set('cropApplied', 'true');
+  form.set('cropBox', JSON.stringify({ x:0, y:0, width:0.5, height:1 }));
   await expectError(await analyze(upload(form)), 400, 'INVALID_INPUT');
   await expectError(await query(json({ querySessionId: 'abc' })), 400, 'INVALID_INPUT');
   expect(await buckets()).toEqual([]);
@@ -271,4 +280,47 @@ it('submits the same right half as a server-side URL crop exactly once', async (
     expect(rgb[2]).toBeGreaterThan(215);
     expect(rgb[0]).toBeLessThan(45);
   }
+  await useDressModelFixture();
+  vi.spyOn(ingest, 'fetchDirectImageUrlSafe').mockResolvedValue(Buffer.from(image));
+  const browser = await (await analyze(upload(buildPreparedUploadForm(blob, 'full_silhouette', {})))).json();
+  const url = await (await analyze(json({ imageUrl:'https://maker.example/photo.png', cropBox:crop }))).json();
+  const categories = (result: { results: { garmentCategory: string }[] }) =>
+    new Set(result.results.map(card => card.garmentCategory));
+  expect(categories(url)).toEqual(new Set(['dress', 'top']));
+  expect(categories(browser)).toEqual(categories(url));
+  // The same bytes submitted as an entire photo retain the model's category filter.
+  const whole = new FormData();
+  whole.set('file', blob, 'whole.webp');
+  const original = await (await analyze(upload(whole))).json();
+  expect(original.querySessionId).not.toBe(browser.querySessionId);
+  expect(categories(original)).toEqual(new Set(['dress']));
+  const repeated = await (await analyze(upload(buildPreparedUploadForm(blob, 'full_silhouette', {})))).json();
+  expect(repeated.querySessionId).toBe(browser.querySessionId);
+});
+
+it('reclaims expired sessions during archetype-only traffic while keeping active sessions', async () => {
+  const first = await (await analyze(json({ archetypeSlug: slug }))).json();
+  await db.query("UPDATE query_sessions SET expires_at=now()-interval '1 second' WHERE id=$1", [first.querySessionId]);
+  vi.spyOn(Math, 'random').mockReturnValue(0);
+  const second = await (await analyze(json({ archetypeSlug: slug }))).json();
+  expect((await db.query('SELECT id FROM query_sessions')).rows).toEqual([{ id: second.querySessionId }]);
+});
+
+it('times live and refinement searches from before database admission', async () => {
+  await useDressModelFixture();
+  let clock = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => clock);
+  const admit = http.admitPublicSearch;
+  vi.spyOn(http, 'admitPublicSearch').mockImplementation(async (...args) => {
+    await admit(...args);
+    clock += 240;
+  });
+  const form = new FormData();
+  form.set('file', new Blob([new Uint8Array(image)]), 'photo.png');
+  const { querySessionId } = await (await analyze(upload(form))).json();
+  expect((await query(json({ querySessionId }))).status).toBe(200);
+  const events = await db.query('SELECT source_type, latency_ms FROM search_events ORDER BY source_type');
+  expect(events.rows).toEqual([
+    { source_type:'filter_refinement', latency_ms:240 }, { source_type:'upload', latency_ms:240 },
+  ]);
 });

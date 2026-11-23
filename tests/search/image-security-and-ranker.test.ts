@@ -42,7 +42,7 @@ describe('image analysis and real pgvector hybrid ranking', () => {
 
   beforeAll(async () => {
     db = new PGlite({ extensions: { vector } });
-    for (const file of ['202611220001_init_seamlens_v1.sql', '202611220002_catalog_integrity.sql']) {
+    for (const file of ['202611220001_init_seamlens_v1.sql', '202611220002_catalog_integrity.sql', '202611220007_search_session_crop.sql']) {
       await db.exec(await readFile(new URL(`../../supabase/migrations/${file}`, import.meta.url), 'utf8'));
     }
     await seedSyntheticCatalog(db);

@@ -13,18 +13,20 @@ export type AnalyzeDeps = {
 };
 
 export type AnalyzeInput = (
-  { source: 'upload'; bytes: Buffer } | { source: 'url'; imageUrl: string }
+  { source: 'upload'; bytes: Buffer; cropApplied?: boolean } | { source: 'url'; imageUrl: string }
 ) & {
   cropBox?: CropBox | null;
   focusRegion: FocusRegion;
   filters: SearchFilters;
 };
 
-export async function analyzeAndSearch(deps: AnalyzeDeps, input: AnalyzeInput): Promise<SearchExecutionResult> {
-  const startedAt = performance.now();
+export async function analyzeAndSearch(
+  deps: AnalyzeDeps, input: AnalyzeInput, startedAt = performance.now(),
+): Promise<SearchExecutionResult> {
   const { db, visionExtractor, textEmbedder } = deps;
   const bytes = input.source === 'upload' ? input.bytes : await fetchDirectImageUrlSafe(input.imageUrl);
   const { webpBytes, sha256 } = await validateAndNormalizeServerImage(bytes, input.cropBox);
+  const cropApplied = input.source === 'upload' && input.cropApplied === true;
   const crop = input.cropBox;
   const cropBox = crop && (crop.x !== 0 || crop.y !== 0 || crop.width !== 1 || crop.height !== 1)
     ? JSON.stringify({ x: crop.x, y: crop.y, width: crop.width, height: crop.height })
@@ -32,10 +34,11 @@ export async function analyzeAndSearch(deps: AnalyzeDeps, input: AnalyzeInput): 
 
   const { rows: [cached] } = await db.query<{ id: string }>(
     `SELECT id FROM query_sessions
-     WHERE image_sha256 = $1 AND crop_box IS NOT DISTINCT FROM $2::jsonb AND expires_at > now()
+     WHERE image_sha256 = $1 AND crop_box IS NOT DISTINCT FROM $2::jsonb
+       AND client_cropped = $3 AND expires_at > now()
      ORDER BY created_at DESC, id
      LIMIT 1`,
-    [sha256, cropBox],
+    [sha256, cropBox, cropApplied],
   );
   if (cached) {
     return executeLoggedSessionSearch(db, cached.id, input.focusRegion, input.filters, input.source, startedAt);
@@ -63,18 +66,14 @@ export async function analyzeAndSearch(deps: AnalyzeDeps, input: AnalyzeInput): 
   const { rows: [{ id }] } = await db.query<{ id: string }>(
     `INSERT INTO query_sessions
        (image_sha256, crop_box, query_status, extracted_profile, canonical_texts,
-        vec_full, vec_bodice, vec_sleeves, vec_skirt, warnings, vision_ms, embed_ms)
+        vec_full, vec_bodice, vec_sleeves, vec_skirt, warnings, vision_ms, embed_ms, client_cropped)
      VALUES ($1, $2::jsonb, $3, $4::jsonb, $5::jsonb,
-             $6::vector, $7::vector, $8::vector, $9::vector, $10, $11, $12)
+             $6::vector, $7::vector, $8::vector, $9::vector, $10, $11, $12, $13)
      RETURNING id`,
     [sha256, cropBox, status, JSON.stringify(profile), JSON.stringify(canonical),
       toVectorLiteral(vectors.full), toVectorLiteral(vectors.bodice), toVectorLiteral(vectors.sleeves),
-      toVectorLiteral(vectors.skirt), warnings, visionMs, embedMs],
+      toVectorLiteral(vectors.skirt), warnings, visionMs, embedMs, cropApplied],
   );
-
-  if (Math.random() < 0.01) {
-    await db.query('DELETE FROM query_sessions WHERE expires_at < now()');
-  }
 
   return executeLoggedSessionSearch(db, id, input.focusRegion, input.filters, input.source, startedAt);
 }

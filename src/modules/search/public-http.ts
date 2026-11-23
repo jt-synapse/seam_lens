@@ -24,7 +24,8 @@ const cropBox = z.object({
 const searchOptions = { focusRegion: FocusRegionSchema.optional(), filters };
 const urlInput = z.object({ ...searchOptions, imageUrl: z.string().url(), cropBox }).strict();
 const archetypeInput = z.object({ ...searchOptions, archetypeSlug: z.string().trim().min(1) }).strict();
-const uploadOptions = z.object({ ...searchOptions, cropBox }).strict();
+const uploadOptions = z.object({ ...searchOptions, cropBox, cropApplied: z.boolean().optional() })
+  .strict().refine(options => !(options.cropApplied && options.cropBox), 'Crop the image only once.');
 const queryInput = z.object({ ...searchOptions, querySessionId: z.string().uuid() }).strict();
 
 class RateLimitError extends SearchError {
@@ -112,7 +113,7 @@ export async function readAnalyzeRequest(request: Request) {
   const options: Record<string, unknown> = {};
   for (const [name, value] of form.entries()) {
     if (name === 'file') continue;
-    if (!['cropBox', 'focusRegion', 'filters'].includes(name) || typeof value !== 'string' || Object.hasOwn(options, name)) {
+    if (!['cropBox', 'cropApplied', 'focusRegion', 'filters'].includes(name) || typeof value !== 'string' || Object.hasOwn(options, name)) {
       throw invalid();
     }
     try { options[name] = name === 'focusRegion' ? value : JSON.parse(value); } catch { throw invalid(); }
