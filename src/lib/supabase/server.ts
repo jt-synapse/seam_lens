@@ -6,6 +6,10 @@ import {
   getSupabasePublicConfig,
   getSupabaseServiceConfig,
 } from '@/lib/env';
+import legacySyntheticMediaPaths from './legacy-synthetic-media-paths.json';
+
+// These exact paths were stored by the original seed before fixtures used root-relative URLs.
+const legacySyntheticMediaPathSet = new Set(legacySyntheticMediaPaths);
 
 /**
  * Creates a cookie-bound Supabase SSR client for Server Components, Route Handlers, and Server Actions.
@@ -46,7 +50,7 @@ export function createSupabaseServiceClient(): SupabaseClient {
 }
 
 /**
- * Resolves a stored relative asset path (`catalog-media/...`) to a public HTTPS URL when Supabase is configured.
+ * Resolves bundled fixtures locally and Storage object paths against the configured Supabase URL.
  */
 export function resolveCatalogMediaUrl(storagePath: string | null): string | null {
   if (!storagePath) {
@@ -60,11 +64,14 @@ export function resolveCatalogMediaUrl(storagePath: string | null): string | nul
     return storagePath;
   }
 
-  const supabaseUrl = getOptionalPublicSupabaseUrl();
-  const normalized = storagePath.replace(/^\/+/, '');
-  if (!supabaseUrl) {
-    return `/${normalized}`;
+  if (legacySyntheticMediaPathSet.has(storagePath)) {
+    return `/${storagePath}`;
   }
 
-  return `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/public/${normalized}`;
+  const supabaseUrl = getOptionalPublicSupabaseUrl();
+  if (!supabaseUrl) {
+    return `/${storagePath}`;
+  }
+
+  return `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/public/${storagePath}`;
 }

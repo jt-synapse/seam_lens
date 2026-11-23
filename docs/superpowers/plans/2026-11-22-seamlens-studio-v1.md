@@ -24,7 +24,7 @@
 | Work | Evidence or prerequisite | Review handoff |
 | --- | --- | --- |
 | Tasks 1–2, complete | Taxonomy at `2251d96`, scoring and chips at `792396a` | Keep these commits as the tested baseline. |
-| Task 3, review open | Database and seed at `9a39429` on `feat/seamlens-v1` | Start with the remaining Task 3 acceptance tests below. |
+| Task 3, complete | Catalog integrity migration, stable seed and 68 local WebP fixtures on `feat/seamlens-v1` | Independently reviewed. All 31 tests and typecheck passed using PGlite and pg-style connection doubles. |
 | Task 4 | Reviewed Task 3 schema | Publish the provider interfaces, budget behavior and mock fixtures for both consumers. |
 | Tasks 5 and 7 | Task 4 | Search and ingestion have separate owners. Integrate the reviewed change from each before dispatching its dependents. |
 | Tasks 6, 8, 9 and 10 | 5 → 6 → 8 for public discovery. 5 + 7 → 9 for admin. 5 → 10 for benchmark logic. | Run the final browser, build and release checks after both public and admin surfaces are integrated. |
@@ -167,7 +167,7 @@ Reviewed at `792396a`. The regression suite checks category and regional weights
 
 ### Task 3: PostgreSQL + `pgvector` Schema, Publish Trigger, RLS & Stage-A Synthetic Seed Catalog
 
-**State.** Commit `9a39429` contains the initial migration, database helpers, seed CLI and 7 database tests. Its synthetic seed creates six approved makers, 18 patterns, 22 views and four archetypes. Resume from that commit.
+**State.** Complete and independently reviewed. The seed contains six fictional makers, 18 patterns, 22 views and four archetypes. Migration 002 is verified on fresh and upgraded PGlite databases. The 68 original WebP files ship in `public/catalog-media/`.
 
 **Files**
 
@@ -175,10 +175,10 @@ Reviewed at `792396a`. The regression suite checks category and regional weights
 - Add `supabase/migrations/202611220002_catalog_integrity.sql` and original local fixtures under `public/catalog-media/`. Keep genuine maker media in the configured Storage bucket.
 - Retain `Queryable` from `src/lib/db.ts`. Its result always contains `rows`; pg supplies `rowCount` and PGlite supplies `affectedRows`. Use `RETURNING` when later actions need to distinguish a changed row. Keep `withTransaction`, `toVectorLiteral` and `seedSyntheticCatalog` as entry points.
 
-- [ ] **Write regression tests.** A band with a different maker from its pattern must fail on insert and update. A pending or suspended maker cannot enqueue an import. Approval followed by suspension hides that maker's published patterns, bands and views from both public roles. Verify that public reads exclude permission evidence notes, including with deployment-style preexisting table grants.
-- [ ] **Resolve the schema and transaction findings.** Enforce the pair with a composite foreign key, and check maker approval at batch creation or reassignment. Keep ordinary curation drafts possible. In an upgrade test, apply the original migration, seed representative rows and then apply the new migration. Report inconsistent legacy ownership for correction before validating the constraint. In a separate fresh database, apply all migrations in order. Revoke table-wide maker reads for public roles and grant only the columns needed for catalog display and policy evaluation. Exercise `withTransaction` on a pool, an already acquired client and PGlite, verifying rollback and releasing only connections acquired by the helper.
-- [ ] **Repair the local catalog.** Ship original covers, technical flats and archetype images for all non-null seeded paths. Make synthetic media resolve locally even when Supabase is configured. Verify the files decode, that cover/front/back are distinct when present, and that each archetype's displayed garment and profile agree. Replace the positional dress reference for `surplice-wrap-flutter-top` with a matching named top fixture. Run the seed twice and verify stable IDs and counts. Preserve maker suspensions and pattern takedowns on rerun.
-- [ ] **Verify and review.** Run `bun run test tests/db/schema-and-seed.test.ts` and `bun run typecheck`. Accept when the original guardrails and new regression cases pass. Include a visual spot-check of the local fixtures. Record the fix commit and independent review before closing Task 3.
+- [x] **Write regression tests.** A band with a different maker from its pattern must fail on insert and update. A pending or suspended maker cannot enqueue an import. Approval followed by suspension hides that maker's published patterns, bands and views from both public roles. Verify that public reads exclude permission evidence notes, including with deployment-style preexisting table grants.
+- [x] **Resolve the schema and transaction findings.** Enforce the pair with a composite foreign key, and check maker approval at batch creation or reassignment. Keep ordinary curation drafts possible. In an upgrade test, apply the original migration, seed representative rows and then apply the new migration. Report inconsistent legacy ownership for correction before validating the constraint. In a separate fresh database, apply all migrations in order. Revoke table-wide maker reads for public roles and grant only the columns needed for catalog display and policy evaluation. Exercise `withTransaction` on a pool, an already acquired client and PGlite, verifying rollback and releasing only connections acquired by the helper.
+- [x] **Repair the local catalog.** Ship original covers, technical flats and archetype images for all non-null seeded paths. Make synthetic media resolve locally even when Supabase is configured. Verify the files decode, that cover/front/back are distinct when present, and that each archetype's displayed garment and profile agree. Replace the positional dress reference for `surplice-wrap-flutter-top` with a matching named top fixture. Run the seed twice and verify stable IDs and counts. Preserve maker suspensions and pattern takedowns on rerun.
+- [x] **Verify and review.** Run `bun run test tests/db/schema-and-seed.test.ts` and `bun run typecheck`. Accept when the original guardrails and new regression cases pass. Include a visual spot-check of the local fixtures. Record the fix commit and independent review before closing Task 3.
 
 ---
 

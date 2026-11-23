@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
-import { toVectorLiteral, withTransaction } from '@/lib/db';
+import { toVectorLiteral, withTransaction, type Queryable } from '@/lib/db';
 import {
   getCatalogMediaBucket,
   getDailyAiBudgetUsd,
@@ -20,9 +20,14 @@ import {
   seedSyntheticCatalog,
 } from '../../supabase/seed/synthetic-catalog';
 
-const MIGRATION_PATH = path.resolve(
-  process.cwd(),
-  'supabase/migrations/202611220001_init_seamlens_v1.sql'
+const migrationsDirectory = path.resolve(process.cwd(), 'supabase/migrations');
+const initialMigration = fs.readFileSync(
+  path.join(migrationsDirectory, '202611220001_init_seamlens_v1.sql'),
+  'utf8'
+);
+const integrityMigration = fs.readFileSync(
+  path.join(migrationsDirectory, '202611220002_catalog_integrity.sql'),
+  'utf8'
 );
 
 const sampleQueryProfile: ConstructionProfileV1 = ConstructionProfileV1Schema.parse({
@@ -73,8 +78,12 @@ describe('PostgreSQL + pgvector schema, publish guardrails, and synthetic seed',
 
   beforeAll(async () => {
     pg = new PGlite({ extensions: { vector } });
-    const migrationSql = fs.readFileSync(MIGRATION_PATH, 'utf8');
-    await pg.exec(migrationSql);
+    await pg.exec(initialMigration);
+    await pg.exec(integrityMigration);
+  });
+
+  afterAll(async () => {
+    await pg.close();
   });
 
   it('creates all 13 tables with RLS enabled, HNSW vector indexes, and UNLOGGED query_sessions', async () => {
@@ -161,6 +170,52 @@ describe('PostgreSQL + pgvector schema, publish guardrails, and synthetic seed',
     );
     expect(committed.rows[0]?.hit_count).toBe(2);
   });
+
+  it.each(['pool', 'acquired client'] as const)(
+    'rolls back on a pg-style %s and only releases connections acquired by withTransaction',
+    async (input) => {
+      let checkedOut = input === 'acquired client';
+      let releases = 0;
+      const client = {
+        query: pg.query.bind(pg),
+        async connect() {
+          throw new Error('cannot reconnect an acquired client');
+        },
+        release() {
+          if (!checkedOut) throw new Error('double release');
+          checkedOut = false;
+          releases += 1;
+        },
+      };
+      const pool: Queryable & { connect(): Promise<typeof client> } = {
+        async query() {
+          throw new Error('transaction queries must use the acquired client');
+        },
+        async connect() {
+          if (checkedOut) throw new Error('connection already acquired');
+          checkedOut = true;
+          return client;
+        },
+      };
+      const db = input === 'pool' ? pool : client;
+      const failure = new Error('force rollback on pg-style connection');
+      await expect(withTransaction(db, async (tx) => {
+        await tx.query(
+          `INSERT INTO rate_limit_windows (bucket, subject_hash, window_start)
+           VALUES ('query_min', $1, now())`, [input]
+        );
+        throw failure;
+      })).rejects.toBe(failure);
+
+      const rolledBack = await pg.query(
+        'SELECT hit_count FROM rate_limit_windows WHERE subject_hash = $1', [input]
+      );
+      expect(rolledBack.rows).toEqual([]);
+      expect(releases).toBe(input === 'pool' ? 1 : 0);
+      expect(checkedOut).toBe(input === 'acquired client');
+      if (input === 'acquired client') client.release();
+    }
+  );
 
   it('seeds >=20 Dress/Top views, Straight+Curve split bands, nullable-hip cropped top, and >=4 archetypes idempotently', async () => {
     const counts = await seedSyntheticCatalog(pg);
@@ -408,10 +463,115 @@ describe('PostgreSQL + pgvector schema, publish guardrails, and synthetic seed',
     ).rejects.toThrow(/pattern_size_bands|hip|size_bands/i);
   });
 
+  it('rejects mismatched maker ownership when inserting or updating a size band', async () => {
+    await pg.exec(`
+      INSERT INTO makers (slug, name, storefront_url, platform_type)
+      VALUES ('band-owner', 'Band Owner', 'https://owner.example', 'custom'),
+             ('unrelated-owner', 'Other Owner', 'https://other.example', 'custom');
+      INSERT INTO patterns (maker_id, slug, title, garment_category, substrate_type, skill_level)
+      SELECT id, 'band-owner-top', 'Band Owner Top', 'top', 'woven', 'intermediate'
+      FROM makers WHERE slug = 'band-owner';
+      INSERT INTO pattern_size_bands (pattern_id, maker_id, product_url, bust_min_in, bust_max_in)
+      SELECT id, maker_id, 'https://owner.example/top', 32, 48
+      FROM patterns WHERE slug = 'band-owner-top';
+    `);
+
+    await expect(pg.query(`
+      INSERT INTO pattern_size_bands (pattern_id, maker_id, band_label, product_url, bust_min_in, bust_max_in)
+      SELECT p.id, m.id, 'Curve', 'https://other.example/top', 42, 58
+      FROM patterns p CROSS JOIN makers m
+      WHERE p.slug = 'band-owner-top' AND m.slug = 'unrelated-owner'
+    `)).rejects.toMatchObject({ code: '23503' });
+
+    await expect(pg.query(`
+      UPDATE pattern_size_bands
+      SET maker_id = (SELECT id FROM makers WHERE slug = 'unrelated-owner')
+      WHERE pattern_id = (SELECT id FROM patterns WHERE slug = 'band-owner-top')
+    `)).rejects.toMatchObject({ code: '23503' });
+
+    await expect(pg.query(`
+      UPDATE patterns
+      SET maker_id = (SELECT id FROM makers WHERE slug = 'unrelated-owner')
+      WHERE slug = 'band-owner-top'
+    `)).rejects.toMatchObject({ code: '23503' });
+  });
+
+  it('requires approved makers on import creation and reassignment', async () => {
+    await pg.exec(`
+      INSERT INTO makers (slug, name, storefront_url, platform_type, vetted_status)
+      VALUES ('import-pending', 'Pending', 'https://pending.example', 'custom', 'pending'),
+             ('import-suspended', 'Suspended', 'https://suspended.example', 'custom', 'suspended'),
+             ('import-approved', 'Approved', 'https://approved.example', 'custom', 'approved');
+    `);
+
+    const enqueueSql = `
+      INSERT INTO ingestion_batches (maker_id, source_type, source_descriptor, created_by)
+      SELECT id, 'csv_upload', 'test.csv', gen_random_uuid() FROM makers WHERE slug = $1
+      RETURNING id
+    `;
+    for (const slug of ['import-pending', 'import-suspended']) {
+      await expect(pg.query(enqueueSql, [slug])).rejects.toThrow(/maker.*approved/i);
+    }
+
+    const { rows: [batch] } = await pg.query<{ id: string }>(enqueueSql, ['import-approved']);
+    for (const slug of ['import-pending', 'import-suspended']) {
+      await expect(pg.query(`
+        UPDATE ingestion_batches SET maker_id = (SELECT id FROM makers WHERE slug = $1)
+        WHERE id = $2
+      `, [slug, batch.id])).rejects.toThrow(/maker.*approved/i);
+    }
+
+    await pg.query(`UPDATE makers SET vetted_status = 'suspended' WHERE slug = 'import-approved'`);
+    const result = await pg.query<{ status: string }>(
+      `UPDATE ingestion_batches SET status = 'failed' WHERE id = $1 RETURNING status`, [batch.id]
+    );
+    expect(result.rows).toEqual([{ status: 'failed' }]);
+  });
+
+  it('reports legacy ownership mismatches and preserves ownership for manual correction', async () => {
+    const legacyPg = new PGlite({ extensions: { vector } });
+    try {
+      await legacyPg.exec(initialMigration);
+      await legacyPg.exec(`
+        INSERT INTO makers (id, slug, name, storefront_url, platform_type)
+        VALUES ('10000000-0000-0000-0000-000000000001', 'legacy-owner', 'Legacy Owner', 'https://owner.example', 'custom'),
+               ('10000000-0000-0000-0000-000000000002', 'legacy-other', 'Other Maker', 'https://other.example', 'custom');
+        INSERT INTO patterns (id, maker_id, slug, title, garment_category, substrate_type, skill_level)
+        VALUES ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001',
+                'legacy-top', 'Legacy Top', 'top', 'woven', 'intermediate');
+        INSERT INTO pattern_size_bands (id, pattern_id, maker_id, product_url, bust_min_in, bust_max_in)
+        VALUES ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
+                '10000000-0000-0000-0000-000000000002', 'https://other.example/top', 32, 48);
+      `);
+      await expect(legacyPg.exec(integrityMigration)).rejects.toMatchObject({
+        message: expect.stringMatching(/legacy.*ownership/i),
+        detail: expect.stringContaining('30000000-0000-0000-0000-000000000001'),
+        hint: expect.stringMatching(/correct/i),
+      });
+      const legacyBand = await legacyPg.query<{ maker_id: string }>('SELECT maker_id FROM pattern_size_bands');
+      expect(legacyBand.rows).toEqual([{ maker_id: '10000000-0000-0000-0000-000000000002' }]);
+
+      await legacyPg.query(`
+        UPDATE pattern_size_bands b SET maker_id = p.maker_id FROM patterns p WHERE b.pattern_id = p.id
+      `);
+      await legacyPg.exec(integrityMigration);
+      const correctedBand = await legacyPg.query<{ maker_id: string }>('SELECT maker_id FROM pattern_size_bands');
+      expect(correctedBand.rows).toEqual([{ maker_id: '10000000-0000-0000-0000-000000000001' }]);
+    } finally {
+      await legacyPg.close();
+    }
+  });
+
   it('executes and enforces Supabase anon and authenticated RLS policies when roles exist', async () => {
     const rlsPg = new PGlite({ extensions: { vector } });
-    await rlsPg.exec(`CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN;`);
-    await rlsPg.exec(fs.readFileSync(MIGRATION_PATH, 'utf8'));
+    await rlsPg.exec(`
+      CREATE ROLE anon NOLOGIN;
+      CREATE ROLE authenticated NOLOGIN;
+      CREATE ROLE service_role NOLOGIN BYPASSRLS;
+      ALTER DEFAULT PRIVILEGES IN SCHEMA public
+        GRANT ALL ON TABLES TO anon, authenticated, service_role, PUBLIC;
+    `);
+    await rlsPg.exec(initialMigration);
 
     const counts = await seedSyntheticCatalog(rlsPg);
     expect(counts.patternCount).toBe(18);
@@ -434,6 +594,29 @@ describe('PostgreSQL + pgvector schema, publish guardrails, and synthetic seed',
       FROM curated_archetypes LIMIT 1`
     );
 
+    await rlsPg.exec(`
+      GRANT SELECT (permission_evidence_note) ON makers TO anon, authenticated, PUBLIC;
+      UPDATE makers SET permission_evidence_note = 'Private permission record' WHERE slug = 'maison-verveine';
+    `);
+    await rlsPg.exec(integrityMigration);
+
+    const owner = await rlsPg.query<{ id: string }>(`SELECT id FROM makers WHERE slug = 'maison-verveine'`);
+    const makerId = owner.rows[0].id;
+    const published = await rlsPg.query<{ ids: string[] }>(
+      `SELECT array_agg(id) AS ids FROM patterns WHERE maker_id = $1 AND status = 'published'`, [makerId]
+    );
+    const patternIds = published.rows[0].ids;
+    const visibleMakerCatalog = (role: 'anon' | 'authenticated') => withTransaction(rlsPg, async (tx) => {
+      await tx.query(`SET LOCAL ROLE ${role}`);
+      const result = await tx.query<{ makers: number; patterns: number; bands: number; views: number }>(`
+        SELECT (SELECT COUNT(*)::int FROM makers WHERE id = $1) AS makers,
+               (SELECT COUNT(*)::int FROM patterns WHERE id = ANY($2::uuid[])) AS patterns,
+               (SELECT COUNT(*)::int FROM pattern_size_bands WHERE pattern_id = ANY($2::uuid[])) AS bands,
+               (SELECT COUNT(*)::int FROM pattern_views WHERE pattern_id = ANY($2::uuid[])) AS views
+      `, [makerId, patternIds]);
+      return result.rows[0];
+    });
+
     for (const roleName of ['anon', 'authenticated'] as const) {
       const visibleCounts = await withTransaction(rlsPg, async (tx) => {
         await tx.query(`SET LOCAL ROLE ${roleName}`);
@@ -454,6 +637,27 @@ describe('PostgreSQL + pgvector schema, publish guardrails, and synthetic seed',
       });
       expect(visibleCounts).toEqual({ makers: 6, patterns: 18, archetypes: 4 });
 
+      const ownerCatalog = await visibleMakerCatalog(roleName);
+      expect(ownerCatalog.makers).toBe(1);
+      expect(ownerCatalog.patterns).toBeGreaterThan(0);
+      expect(ownerCatalog.bands).toBeGreaterThan(0);
+      expect(ownerCatalog.views).toBeGreaterThan(0);
+
+      await expect(withTransaction(rlsPg, async (tx) => {
+        await tx.query(`SET LOCAL ROLE ${roleName}`);
+        return tx.query(`SELECT permission_evidence_note FROM makers`);
+      })).rejects.toMatchObject({ code: '42501' });
+
+      const grants = await rlsPg.query<{ accessible: string[] }>(`
+        SELECT ARRAY(
+          SELECT relname FROM pg_class
+          WHERE relnamespace = 'public'::regnamespace AND relkind = 'r'
+            AND has_table_privilege($1, oid, 'INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER')
+          ORDER BY relname
+        ) AS accessible
+      `, [roleName]);
+      expect(grants.rows[0].accessible).toEqual([]);
+
       await expect(
         withTransaction(rlsPg, async (tx) => {
           await tx.query(`SET LOCAL ROLE ${roleName}`);
@@ -468,6 +672,20 @@ describe('PostgreSQL + pgvector schema, publish guardrails, and synthetic seed',
         })
       ).rejects.toThrow(/permission/i);
     }
+
+    await rlsPg.query(`UPDATE makers SET vetted_status = 'suspended' WHERE slug = 'maison-verveine'`);
+    for (const roleName of ['anon', 'authenticated'] as const) {
+      expect(await visibleMakerCatalog(roleName)).toEqual({ makers: 0, patterns: 0, bands: 0, views: 0 });
+    }
+
+    const serviceRows = await withTransaction(rlsPg, async (tx) => {
+      await tx.query('SET LOCAL ROLE service_role');
+      return tx.query<{ permission_evidence_note: string }>(
+        `SELECT permission_evidence_note FROM makers WHERE slug = 'maison-verveine'`
+      );
+    });
+    expect(serviceRows.rows).toEqual([{ permission_evidence_note: 'Private permission record' }]);
+    await rlsPg.close();
   });
 
   it('exposes lazy env defaults and Storage URL resolution without requiring live secrets at import time', () => {

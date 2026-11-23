@@ -1,4 +1,4 @@
-import { Pool, type PoolClient } from 'pg';
+import { Pool } from 'pg';
 import { getDatabaseUrl } from './env';
 
 export interface QueryResultLike<R extends Record<string, unknown> = Record<string, unknown>> {
@@ -21,7 +21,7 @@ type TransactionalDb = Queryable & {
 };
 
 type ConnectableDb = Queryable & {
-  connect(): Promise<PoolClient>;
+  connect(): Promise<Queryable & { release(): void }>;
 };
 
 const globalForDb = globalThis as typeof globalThis & {
@@ -61,8 +61,10 @@ function isTransactionalDb(db: Queryable): db is TransactionalDb {
   );
 }
 
-function isConnectableDb(db: Queryable): db is ConnectableDb {
+function isConnectionPool(db: Queryable): db is ConnectableDb {
   return (
+    // A checked-out pg client also has connect(), but its caller owns the release.
+    !('release' in db) &&
     'connect' in db &&
     typeof (db as Partial<ConnectableDb>).connect === 'function'
   );
@@ -79,29 +81,19 @@ export async function withTransaction<T>(
     return db.transaction((tx) => fn(tx));
   }
 
-  if (isConnectableDb(db)) {
-    const client = await db.connect();
-    try {
-      await client.query('BEGIN');
-      const result = await fn(client);
-      await client.query('COMMIT');
-      return result;
-    } catch (error) {
-      await client.query('ROLLBACK').catch(() => undefined);
-      throw error;
-    } finally {
-      client.release();
-    }
-  }
+  const acquiredClient = isConnectionPool(db) ? await db.connect() : undefined;
+  const tx = acquiredClient ?? db;
 
-  await db.query('BEGIN');
   try {
-    const result = await fn(db);
-    await db.query('COMMIT');
+    await tx.query('BEGIN');
+    const result = await fn(tx);
+    await tx.query('COMMIT');
     return result;
   } catch (error) {
-    await db.query('ROLLBACK').catch(() => undefined);
+    await tx.query('ROLLBACK').catch(() => undefined);
     throw error;
+  } finally {
+    acquiredClient?.release();
   }
 }
 

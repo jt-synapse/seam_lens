@@ -239,6 +239,135 @@ const SEED_MAKERS: SeedMaker[] = [
   },
 ];
 
+const SQUARE_NECK_PUFF_MIDI_PROFILE = buildProfile({
+  schema_version: 1,
+  garment_category: 'dress',
+  substrate_compatibility: 'woven',
+  silhouette: {
+    overall_shape: 'fit_and_flare',
+    ease_level: 'close_fitting',
+    garment_length: 'midi',
+  },
+  bodice_and_neckline: {
+    neckline_type: 'square',
+    neckline_depth: 'modest_mid',
+    collar_type: 'none',
+    shaping_darts_seams: ['bust_dart', 'waist_dart'],
+    waist_definition: 'natural_seam',
+    back_detail: 'closed_solid',
+  },
+  sleeves_and_armscye: {
+    armscye_construction: 'set_in',
+    sleeve_style: 'puff_gathered_cap',
+    sleeve_length: 'elbow',
+    cuff_finish: 'elastic_casing',
+  },
+  skirt_and_hemline: {
+    has_skirt_section: true,
+    skirt_construction: 'gathered_rectangle',
+    tier_count: 1,
+    slit_detail: 'none',
+    hemline_shape: 'straight_level',
+    pockets: ['in_seam'],
+  },
+  closures_and_details: {
+    primary_closure: 'invisible_zip_back',
+    finish_structure: 'lined_bodice',
+  },
+  structural_nuance_notes: {
+    bodice_neckline: 'Faced square neckline with front bust darts and waist darts',
+    sleeves_armscye: 'Set-in puff sleeve with gathered shoulder cap and elastic elbow casing',
+    skirt_hemline: 'Gathered midi skirt panel at natural waist with deep in-seam pockets',
+    overall_drape_and_proportions: 'Close-fitting woven bodice with full gathered midi skirt',
+  },
+});
+
+const BIAS_CUT_COWL_SLIP_PROFILE = buildProfile({
+  schema_version: 1,
+  garment_category: 'dress',
+  substrate_compatibility: 'woven',
+  silhouette: {
+    overall_shape: 'bias_slip',
+    ease_level: 'semi_fitted',
+    garment_length: 'midi',
+  },
+  bodice_and_neckline: {
+    neckline_type: 'cowl',
+    neckline_depth: 'modest_mid',
+    collar_type: 'none',
+    shaping_darts_seams: ['bias_drape'],
+    waist_definition: 'no_waist_seam_continuous',
+    back_detail: 'low_open_back',
+  },
+  sleeves_and_armscye: {
+    armscye_construction: 'sleeveless_straps',
+    sleeve_style: 'spaghetti_camisole',
+    sleeve_length: 'sleeveless',
+    cuff_finish: 'bias_bound',
+  },
+  skirt_and_hemline: {
+    has_skirt_section: true,
+    skirt_construction: 'bias_cut',
+    tier_count: 0,
+    slit_detail: 'side_slit',
+    hemline_shape: 'straight_level',
+    pockets: ['none_visible'],
+  },
+  closures_and_details: {
+    primary_closure: 'pullover_no_closure',
+    finish_structure: 'bias_bound',
+  },
+  structural_nuance_notes: {
+    bodice_neckline: '45-degree bias cowl neckline falling softly without bust darts',
+    sleeves_armscye: 'Rouleau spaghetti straps over low scoop back armscye',
+    skirt_hemline: 'Continuous bias-cut midi skirt skimming hip with single side slit',
+    overall_drape_and_proportions: 'Fluid bias-cut silhouette clinging softly through waist',
+  },
+});
+
+const COLLARED_SHIRTDRESS_PROFILE = buildProfile({
+  schema_version: 1,
+  garment_category: 'dress',
+  substrate_compatibility: 'woven',
+  silhouette: {
+    overall_shape: 'shirt_dress_blouse',
+    ease_level: 'semi_fitted',
+    garment_length: 'midi',
+  },
+  bodice_and_neckline: {
+    neckline_type: 'collared_shirt',
+    neckline_depth: 'high',
+    collar_type: 'classic_point',
+    shaping_darts_seams: ['gathers_yoke', 'waist_dart'],
+    waist_definition: 'cinched_tie_belt',
+    back_detail: 'closed_solid',
+  },
+  sleeves_and_armscye: {
+    armscye_construction: 'set_in',
+    sleeve_style: 'fitted_straight',
+    sleeve_length: 'three_quarter',
+    cuff_finish: 'buttoned_placket_cuff',
+  },
+  skirt_and_hemline: {
+    has_skirt_section: true,
+    skirt_construction: 'a_line_panel',
+    tier_count: 0,
+    slit_detail: 'side_slit',
+    hemline_shape: 'curved_shirt_tail',
+    pockets: ['patch', 'in_seam'],
+  },
+  closures_and_details: {
+    primary_closure: 'button_front_full',
+    finish_structure: 'unlined_faced',
+  },
+  structural_nuance_notes: {
+    bodice_neckline: 'Two-piece collar stand with classic point collar and front button placket',
+    sleeves_armscye: 'Three-quarter tailored sleeve finishing in buttoned tower placket cuff',
+    skirt_hemline: 'A-line shirtdress skirt with curved shirt-tail hem and side-seam pockets',
+    overall_drape_and_proportions: 'Structured tailored shirtdress cinched with removable tie belt',
+  },
+});
+
 const SEED_PATTERNS: SeedPattern[] = [
   // 1. Multi-band (Straight 32-46 + Curve 44-62) + Multi-view flagship Dress
   {
@@ -282,48 +411,7 @@ const SEED_PATTERNS: SeedPattern[] = [
         viewCode: 'view_a_puff_midi',
         viewLabel: 'View A — Square-Neck Puff Midi',
         isPrimaryView: true,
-        profile: buildProfile({
-          schema_version: 1,
-          garment_category: 'dress',
-          substrate_compatibility: 'woven',
-          silhouette: {
-            overall_shape: 'fit_and_flare',
-            ease_level: 'close_fitting',
-            garment_length: 'midi',
-          },
-          bodice_and_neckline: {
-            neckline_type: 'square',
-            neckline_depth: 'modest_mid',
-            collar_type: 'none',
-            shaping_darts_seams: ['bust_dart', 'waist_dart'],
-            waist_definition: 'natural_seam',
-            back_detail: 'closed_solid',
-          },
-          sleeves_and_armscye: {
-            armscye_construction: 'set_in',
-            sleeve_style: 'puff_gathered_cap',
-            sleeve_length: 'elbow',
-            cuff_finish: 'elastic_casing',
-          },
-          skirt_and_hemline: {
-            has_skirt_section: true,
-            skirt_construction: 'gathered_rectangle',
-            tier_count: 1,
-            slit_detail: 'none',
-            hemline_shape: 'straight_level',
-            pockets: ['in_seam'],
-          },
-          closures_and_details: {
-            primary_closure: 'invisible_zip_back',
-            finish_structure: 'lined_bodice',
-          },
-          structural_nuance_notes: {
-            bodice_neckline: 'Faced square neckline with front bust darts and waist darts',
-            sleeves_armscye: 'Set-in puff sleeve with gathered shoulder cap and elastic elbow casing',
-            skirt_hemline: 'Gathered midi skirt panel at natural waist with deep in-seam pockets',
-            overall_drape_and_proportions: 'Close-fitting woven bodice with full gathered midi skirt',
-          },
-        }),
+        profile: SQUARE_NECK_PUFF_MIDI_PROFILE,
       },
       {
         viewCode: 'view_b_sleeveless_mini',
@@ -642,48 +730,7 @@ const SEED_PATTERNS: SeedPattern[] = [
         viewCode: 'view_a_bias_midi',
         viewLabel: 'View A — Bias-Cut Cowl Midi Slip',
         isPrimaryView: true,
-        profile: buildProfile({
-          schema_version: 1,
-          garment_category: 'dress',
-          substrate_compatibility: 'woven',
-          silhouette: {
-            overall_shape: 'bias_slip',
-            ease_level: 'semi_fitted',
-            garment_length: 'midi',
-          },
-          bodice_and_neckline: {
-            neckline_type: 'cowl',
-            neckline_depth: 'modest_mid',
-            collar_type: 'none',
-            shaping_darts_seams: ['bias_drape'],
-            waist_definition: 'no_waist_seam_continuous',
-            back_detail: 'low_open_back',
-          },
-          sleeves_and_armscye: {
-            armscye_construction: 'sleeveless_straps',
-            sleeve_style: 'spaghetti_camisole',
-            sleeve_length: 'sleeveless',
-            cuff_finish: 'bias_bound',
-          },
-          skirt_and_hemline: {
-            has_skirt_section: true,
-            skirt_construction: 'bias_cut',
-            tier_count: 0,
-            slit_detail: 'side_slit',
-            hemline_shape: 'straight_level',
-            pockets: ['none_visible'],
-          },
-          closures_and_details: {
-            primary_closure: 'pullover_no_closure',
-            finish_structure: 'bias_bound',
-          },
-          structural_nuance_notes: {
-            bodice_neckline: '45-degree bias cowl neckline falling softly without bust darts',
-            sleeves_armscye: 'Rouleau spaghetti straps over low scoop back armscye',
-            skirt_hemline: 'Continuous bias-cut midi skirt skimming hip with single side slit',
-            overall_drape_and_proportions: 'Fluid bias-cut silhouette clinging softly through waist',
-          },
-        }),
+        profile: BIAS_CUT_COWL_SLIP_PROFILE,
       },
       {
         viewCode: 'view_b_bias_cami',
@@ -764,48 +811,7 @@ const SEED_PATTERNS: SeedPattern[] = [
         viewCode: 'view_a_shirtdress',
         viewLabel: 'View A — Classic Collared Belted Shirtdress',
         isPrimaryView: true,
-        profile: buildProfile({
-          schema_version: 1,
-          garment_category: 'dress',
-          substrate_compatibility: 'woven',
-          silhouette: {
-            overall_shape: 'shirt_dress_blouse',
-            ease_level: 'semi_fitted',
-            garment_length: 'midi',
-          },
-          bodice_and_neckline: {
-            neckline_type: 'collared_shirt',
-            neckline_depth: 'high',
-            collar_type: 'classic_point',
-            shaping_darts_seams: ['gathers_yoke', 'waist_dart'],
-            waist_definition: 'cinched_tie_belt',
-            back_detail: 'closed_solid',
-          },
-          sleeves_and_armscye: {
-            armscye_construction: 'set_in',
-            sleeve_style: 'fitted_straight',
-            sleeve_length: 'three_quarter',
-            cuff_finish: 'buttoned_placket_cuff',
-          },
-          skirt_and_hemline: {
-            has_skirt_section: true,
-            skirt_construction: 'a_line_panel',
-            tier_count: 0,
-            slit_detail: 'side_slit',
-            hemline_shape: 'curved_shirt_tail',
-            pockets: ['patch', 'in_seam'],
-          },
-          closures_and_details: {
-            primary_closure: 'button_front_full',
-            finish_structure: 'unlined_faced',
-          },
-          structural_nuance_notes: {
-            bodice_neckline: 'Two-piece collar stand with classic point collar and front button placket',
-            sleeves_armscye: 'Three-quarter tailored sleeve finishing in buttoned tower placket cuff',
-            skirt_hemline: 'A-line shirtdress skirt with curved shirt-tail hem and side-seam pockets',
-            overall_drape_and_proportions: 'Structured tailored shirtdress cinched with removable tie belt',
-          },
-        }),
+        profile: COLLARED_SHIRTDRESS_PROFILE,
       },
     ],
   },
@@ -1806,44 +1812,97 @@ const SEED_PATTERNS: SeedPattern[] = [
   },
 ];
 
+const SURPLICE_WRAP_FLUTTER_TOP_PROFILE = buildProfile({
+  schema_version: 1,
+  garment_category: 'top',
+  substrate_compatibility: 'woven',
+  silhouette: {
+    overall_shape: 'wrap',
+    ease_level: 'semi_fitted',
+    garment_length: 'hip_length',
+  },
+  bodice_and_neckline: {
+    neckline_type: 'surplice_wrap',
+    neckline_depth: 'modest_mid',
+    collar_type: 'none',
+    shaping_darts_seams: ['bust_dart', 'waist_dart'],
+    waist_definition: 'cinched_tie_belt',
+    back_detail: 'closed_solid',
+  },
+  sleeves_and_armscye: {
+    armscye_construction: 'set_in',
+    sleeve_style: 'flutter_bell',
+    sleeve_length: 'short',
+    cuff_finish: 'none_hemmed',
+  },
+  skirt_and_hemline: {
+    has_skirt_section: false,
+    skirt_construction: 'none_top_hem',
+    tier_count: 0,
+    slit_detail: 'none',
+    hemline_shape: 'straight_level',
+    pockets: ['none_visible'],
+  },
+  closures_and_details: {
+    primary_closure: 'wrap_tie',
+    finish_structure: 'unlined_faced',
+  },
+  structural_nuance_notes: {
+    bodice_neckline: 'Crossover V bodice secured at the natural waist with a side tie',
+    sleeves_armscye: 'Short flared flutter sleeves set into the natural armscye',
+    skirt_hemline: 'Straight hip-length hem with an overlapping front',
+    overall_drape_and_proportions: 'Semi-fitted woven wrap top with a defined waist',
+  },
+});
+
 const SEED_ARCHETYPES: SeedArchetype[] = [
   {
     slug: 'square-neck-puff-midi',
     title: 'Square-Neck Puff Midi',
     caption: 'Structured woven bodice, bust & waist darts, elbow puff sleeves, gathered midi skirt',
-    imagePath: 'catalog-media/archetypes/square-neck-puff-midi.webp',
+    imagePath: '/catalog-media/archetypes/square-neck-puff-midi.webp',
     defaultFocusRegion: 'full_silhouette',
     sortOrder: 1,
-    profile: SEED_PATTERNS[0].views[0].profile,
+    profile: SQUARE_NECK_PUFF_MIDI_PROFILE,
   },
   {
     slug: 'bias-cut-cowl-slip',
     title: 'Bias-Cut Cowl Slip',
     caption: '45-degree bias drape, cowl neckline, spaghetti straps, fluid midi skirt',
-    imagePath: 'catalog-media/archetypes/bias-cut-cowl-slip.webp',
+    imagePath: '/catalog-media/archetypes/bias-cut-cowl-slip.webp',
     defaultFocusRegion: 'full_silhouette',
     sortOrder: 2,
-    profile: SEED_PATTERNS[4].views[0].profile,
+    profile: BIAS_CUT_COWL_SLIP_PROFILE,
   },
   {
     slug: 'collared-button-shirtdress',
     title: 'Tailored Belted Shirtdress',
     caption: 'Point collar on stand, full button placket, tower-cuff sleeves, belted A-line skirt',
-    imagePath: 'catalog-media/archetypes/collared-button-shirtdress.webp',
+    imagePath: '/catalog-media/archetypes/collared-button-shirtdress.webp',
     defaultFocusRegion: 'bodice_neckline',
     sortOrder: 3,
-    profile: SEED_PATTERNS[5].views[0].profile,
+    profile: COLLARED_SHIRTDRESS_PROFILE,
   },
   {
     slug: 'surplice-wrap-flutter-top',
-    title: 'Surplice Wrap Flutter',
-    caption: 'Deep crossover wrap bodice with short flutter sleeves and cinched waist ties',
-    imagePath: 'catalog-media/archetypes/surplice-wrap-flutter-top.webp',
+    title: 'Surplice Wrap Flutter Top',
+    caption: 'Crossover V-neck top with short flutter sleeves and cinched waist ties',
+    imagePath: '/catalog-media/archetypes/surplice-wrap-flutter-top.webp',
     defaultFocusRegion: 'sleeves_armscye',
     sortOrder: 4,
-    profile: SEED_PATTERNS[6].views[0].profile,
+    profile: SURPLICE_WRAP_FLUTTER_TOP_PROFILE,
   },
 ];
+
+function getSeedViewMediaPaths(pattern: SeedPattern, view: SeedPatternView) {
+  const base = `/catalog-media/${pattern.makerSlug}/${pattern.slug}/${view.viewCode}`;
+  const hasFlats = view.hasFlats ?? true;
+  return {
+    cover: `${base}-cover.webp`,
+    front: hasFlats ? `${base}-flat-front.webp` : null,
+    back: hasFlats ? `${base}-flat-back.webp` : null,
+  };
+}
 
 function computeProfileEmbeddings(profile: ConstructionProfileV1) {
   const canonical = serializeCanonicalRegions(profile);
@@ -1863,10 +1922,7 @@ function computeProfileEmbeddings(profile: ConstructionProfileV1) {
   };
 }
 
-/**
- * Idempotently seeds Stage-A fictional approved makers, 18 published patterns (22 views),
- * Straight/Curve split size bands, nullable-hip cropped top, print-trap decoys, and 4 curated archetypes.
- */
+/** Seeds the Stage-A synthetic catalog while preserving existing approval and publication decisions. */
 export async function seedSyntheticCatalog(db: Queryable): Promise<{
   makerCount: number;
   patternCount: number;
@@ -1874,10 +1930,10 @@ export async function seedSyntheticCatalog(db: Queryable): Promise<{
   archetypeCount: number;
 }> {
   return withTransaction(db, async (tx) => {
-    const makerIdsBySlug = new Map<string, string>();
+    const makersBySlug = new Map<string, { id: string; vetted_status: string }>();
 
     for (const maker of SEED_MAKERS) {
-      const res = await tx.query<{ id: string }>(
+      const res = await tx.query<{ id: string; vetted_status: string }>(
         `INSERT INTO makers (
           slug, name, storefront_url, platform_type, vetted_status,
           permission_evidence_note, utm_campaign_slug, affiliate_query_param
@@ -1886,12 +1942,11 @@ export async function seedSyntheticCatalog(db: Queryable): Promise<{
           name = EXCLUDED.name,
           storefront_url = EXCLUDED.storefront_url,
           platform_type = EXCLUDED.platform_type,
-          vetted_status = 'approved',
           permission_evidence_note = EXCLUDED.permission_evidence_note,
           utm_campaign_slug = EXCLUDED.utm_campaign_slug,
           affiliate_query_param = EXCLUDED.affiliate_query_param,
           updated_at = now()
-        RETURNING id`,
+        RETURNING id, vetted_status`,
         [
           maker.slug,
           maker.name,
@@ -1902,30 +1957,24 @@ export async function seedSyntheticCatalog(db: Queryable): Promise<{
           maker.affiliateQueryParam,
         ]
       );
-      makerIdsBySlug.set(maker.slug, res.rows[0].id);
+      makersBySlug.set(maker.slug, res.rows[0]);
     }
 
     let totalViews = 0;
 
     for (const pattern of SEED_PATTERNS) {
-      const makerId = makerIdsBySlug.get(pattern.makerSlug);
-      if (!makerId) {
+      const maker = makersBySlug.get(pattern.makerSlug);
+      if (!maker) {
         throw new Error(`Missing seeded maker for slug ${pattern.makerSlug}`);
       }
+      const makerId = maker.id;
 
-      // Insert/upsert as draft first so child size bands & views exist before publish trigger fires
-      const patternRes = await tx.query<{ id: string }>(
+      // Insert as draft so the publish trigger can validate the completed size bands and views.
+      const { rows: [insertedPattern] } = await tx.query<{ id: string }>(
         `INSERT INTO patterns (
           maker_id, slug, title, garment_category, substrate_type, formats, skill_level, status
         ) VALUES ($1, $2, $3, $4, $5, $6::text[], $7, 'draft')
-        ON CONFLICT (slug) DO UPDATE SET
-          maker_id = EXCLUDED.maker_id,
-          title = EXCLUDED.title,
-          garment_category = EXCLUDED.garment_category,
-          substrate_type = EXCLUDED.substrate_type,
-          formats = EXCLUDED.formats,
-          skill_level = EXCLUDED.skill_level,
-          updated_at = now()
+        ON CONFLICT (slug) DO NOTHING
         RETURNING id`,
         [
           makerId,
@@ -1937,7 +1986,14 @@ export async function seedSyntheticCatalog(db: Queryable): Promise<{
           pattern.skillLevel,
         ]
       );
-      const patternId = patternRes.rows[0].id;
+      const existingPattern = insertedPattern ?? (await tx.query<{ id: string }>(
+        'SELECT id FROM patterns WHERE slug = $1 AND maker_id = $2 FOR UPDATE',
+        [pattern.slug, makerId]
+      )).rows[0];
+      if (!existingPattern) {
+        throw new Error(`Seed pattern ${pattern.slug} belongs to a different maker`);
+      }
+      const patternId = existingPattern.id;
 
       for (const band of pattern.bands) {
         await tx.query(
@@ -1979,8 +2035,7 @@ export async function seedSyntheticCatalog(db: Queryable): Promise<{
       for (const view of pattern.views) {
         const { canonical, vecFullLit, vecBodiceLit, vecSleevesLit, vecSkirtLit } =
           computeProfileEmbeddings(view.profile);
-        const mediaBase = `catalog-media/${pattern.makerSlug}/${pattern.slug}/${view.viewCode}`;
-        const hasFlats = view.hasFlats ?? true;
+        const media = getSeedViewMediaPaths(pattern, view);
 
         await tx.query(
           `INSERT INTO pattern_views (
@@ -2018,9 +2073,9 @@ export async function seedSyntheticCatalog(db: Queryable): Promise<{
             view.viewLabel,
             view.profile.garment_category,
             view.isPrimaryView,
-            `${mediaBase}-cover.webp`,
-            hasFlats ? `${mediaBase}-flat-front.webp` : null,
-            hasFlats ? `${mediaBase}-flat-back.webp` : null,
+            media.cover,
+            media.front,
+            media.back,
             JSON.stringify(view.profile),
             JSON.stringify(canonical),
             vecFullLit,
@@ -2032,14 +2087,28 @@ export async function seedSyntheticCatalog(db: Queryable): Promise<{
         totalViews += 1;
       }
 
-      // Trigger enforce_pattern_publish_readiness validates maker, size bands, and views
-      await tx.query(
-        `UPDATE patterns
-            SET status = 'published',
-                published_at = COALESCE(published_at, now())
-          WHERE id = $1`,
-        [patternId]
-      );
+      if (insertedPattern && maker.vetted_status === 'approved') {
+        // Only newly inserted patterns inherit the fixture's published status.
+        await tx.query("UPDATE patterns SET status = 'published' WHERE id = $1", [patternId]);
+      } else if (!insertedPattern) {
+        // The original publish trigger validates every update of a published pattern.
+        // Its existing status stays intact when a maker suspension hides it.
+        await tx.query(
+          `UPDATE patterns
+              SET title = $2, garment_category = $3, substrate_type = $4,
+                  formats = $5::text[], skill_level = $6
+            WHERE id = $1 AND (status <> 'published' OR $7 = 'approved')`,
+          [
+            patternId,
+            pattern.title,
+            pattern.garmentCategory,
+            pattern.substrateType,
+            pattern.formats,
+            pattern.skillLevel,
+            maker.vetted_status,
+          ]
+        );
+      }
     }
 
     for (const archetype of SEED_ARCHETYPES) {
