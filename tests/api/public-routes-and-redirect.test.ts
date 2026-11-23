@@ -324,3 +324,50 @@ it('times live and refinement searches from before database admission', async ()
     { source_type:'filter_refinement', latency_ms:240 }, { source_type:'upload', latency_ms:240 },
   ]);
 });
+
+it('analyzes the fictional demo URL and a recompressed sample upload without a provider', async () => {
+  vi.stubEnv('SEAMLENS_LOCAL_DEMO', '1');
+  vi.stubEnv('DATABASE_URL', 'postgres://demo:fixture@127.0.0.1:5432/seamlens_demo');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:3101');
+  vi.stubEnv('VERCEL', undefined);
+  vi.stubEnv('GEMINI_API_KEY', '');
+  const fixture = await readFile(new URL('../../eval/fixtures/smoke-v1/images/01-floral-cowl.webp', import.meta.url));
+  const recompressed = await sharp(fixture).resize({ width: 350 }).jpeg({ quality: 70 }).toBuffer();
+  const form = new FormData();
+  form.append('file', new Blob([new Uint8Array(recompressed)]), 'test.jpg');
+
+  const fromUrl = await analyze(json({ imageUrl: 'https://demo.seamlens.test/samples/01-floral-cowl.webp' }));
+  expect(fromUrl.status).toBe(200);
+  const fromUpload = await analyze(upload(form));
+  expect(fromUpload.status).toBe(200);
+  const { rows } = await db.query(
+    "SELECT vision_model, embedding_model, warnings, extracted_profile->'bodice_and_neckline'->>'neckline_type' AS neckline FROM query_sessions",
+  );
+  expect(rows).toHaveLength(2);
+  expect(rows).toEqual(Array(2).fill({
+    vision_model: 'seamlens-local-demo-fixture-v1',
+    embedding_model: 'deterministicTextToVector768',
+    warnings: expect.arrayContaining([expect.stringMatching(/Bundled demo sample/)]),
+    neckline: 'cowl',
+  }));
+  expect((await db.query('SELECT operation, request_count FROM api_usage_ledger ORDER BY operation')).rows)
+    .toEqual([{ operation: 'search_embed', request_count: 2 }, { operation: 'search_vision', request_count: 2 }]);
+
+  await expectError(await analyze(json({ imageUrl: 'https://demo.seamlens.test/samples/../unlisted.webp' })), 422, 'INVALID_INPUT');
+  await expectError(await analyze(json({ imageUrl: 'https://example.com/image.webp' })), 422, 'INVALID_INPUT');
+});
+
+it('identifies a sample profile as fallback for an unknown demo upload', async () => {
+  vi.stubEnv('SEAMLENS_LOCAL_DEMO', '1');
+  vi.stubEnv('DATABASE_URL', 'postgres://demo:fixture@127.0.0.1:5432/seamlens_demo');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:3101');
+  vi.stubEnv('VERCEL', undefined);
+  const form = new FormData();
+  form.append('file', new Blob([new Uint8Array(image)]), 'unrecognized.png');
+  const response = await analyze(upload(form));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    warnings: [expect.stringMatching(/Demo fallback.*sample cowl-dress profile/)],
+    extractedProfile: { bodice_and_neckline: { neckline_type: 'cowl' } },
+  });
+});

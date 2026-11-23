@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "bun --bun next dev",
+    "demo": "bun --no-env-file scripts/demo/start.ts",
     "db:seed": "bun scripts/db-seed.ts",
     "eval:benchmark": "bun scripts/eval/run-benchmark.ts",
     "build": "bun --bun next build",

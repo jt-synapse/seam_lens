@@ -11,7 +11,7 @@ import { mergeSizeBandIntoPattern, savePatternViewCuration, setPatternPublishSta
 import { enqueueIngestionBatch, retryIngestionItem } from '@/modules/ingestion/chunk-worker';
 import { parseSeamLensCsv } from '@/modules/ingestion/parsers';
 import { fetchApprovedShopifyDrafts } from '@/modules/ingestion/production';
-import { createGeminiTextEmbedder } from '@/modules/vision/gemini-text-embedder';
+import { createTextEmbedder } from '@/modules/vision/production';
 import { readCuration } from './patterns/fields';
 import { interruptDeniedAccess, requireAtelierAdmin } from './access';
 
@@ -99,7 +99,7 @@ export async function retryAction(form: FormData) {
 export async function curationAction(form: FormData) {
   return change(async db => {
     const input = readCuration(form);
-    await savePatternViewCuration({db,embedder:createGeminiTextEmbedder(db)},input);
+    await savePatternViewCuration({db,embedder:createTextEmbedder(db)},input);
     return 'View verified. Construction tags, size bands and search embeddings are saved.';
   });
 }

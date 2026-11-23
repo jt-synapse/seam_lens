@@ -245,3 +245,27 @@ describe('public HTTPS transport', () => {
     expect(response.bytes.toString()).toBe('{"ok":true}');
   });
 });
+
+it('only reads bundled demo images without invoking HTTPS transport', async () => {
+  vi.stubEnv('SEAMLENS_LOCAL_DEMO', '1');
+  vi.stubEnv('DATABASE_URL', 'postgres://demo:fixture@127.0.0.1:5432/seamlens_demo');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:3101');
+  vi.stubEnv('VERCEL', undefined);
+  const transport = stubTransport();
+  try {
+    const bytes = await fetchDirectImageUrlSafe('https://demo.seamlens.test/samples/01-floral-cowl.webp', transport);
+    expect(bytes.toString('ascii', 8, 12)).toBe('WEBP');
+    for (const url of [
+      'https://somewhere.example/photo.webp',
+      'https://demo.seamlens.test/samples/01-floral-cowl.webp?external=1',
+      'file:///eval/fixtures/smoke-v1/images/01-floral-cowl.webp',
+      'https://127.0.0.1/samples/01-floral-cowl.webp',
+    ]) {
+      await expect(fetchDirectImageUrlSafe(url, transport)).rejects.toMatchObject({ statusCode: 422 });
+    }
+    expect(transport.resolve).not.toHaveBeenCalled();
+    expect(transport.request).not.toHaveBeenCalled();
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});

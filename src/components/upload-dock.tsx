@@ -7,6 +7,7 @@ import { preprocessGarmentFileInBrowser } from '@/modules/search/client-canvas-p
 import type { CropBox } from '@/modules/search/image-ingest';
 import type { FocusRegion } from '@/modules/taxonomy/construction-profile';
 import { analyzeDiscoverySource, saveDiscoverySession, validImageUrl, type DiscoverySource } from './discovery-session';
+import { useImageUrlPreview } from './demo-image-preview';
 import './upload-dock.css';
 
 const imageTypes = 'image/jpeg,image/png,image/webp,image/avif';
@@ -108,6 +109,7 @@ export function UploadDock({ archetypes }: Props) {
   const [reference, setReference] = useState<{ file: File; prepared: Prepared } | null>(null);
   const [url, setUrl] = useState('');
   const [focus, setFocus] = useState<FocusRegion>('full_silhouette');
+  const imageUrlPreview = useImageUrlPreview(url.trim());
   const [preparing, setPreparing] = useState(false);
   const [cropping, setCropping] = useState(false);
   const [edges, setEdges] = useState(initialEdges);
@@ -173,7 +175,7 @@ export function UploadDock({ archetypes }: Props) {
       </> : <div className="dock-url"><label htmlFor="dock-url-input">Direct image URL</label>
         <input id="dock-url-input" type="url" inputMode="url" placeholder="https://…" required disabled={busy} value={url} onChange={e => { setUrl(e.target.value); resetCrop(); search.setError(null); }} />
         <p>For a social post, upload a screenshot of the garment.</p>
-        {ready && cropping && <Preview src={url.trim()} crop={edges} />}
+        {ready && cropping && imageUrlPreview && <Preview src={imageUrlPreview} crop={edges} />}
       </div>}
       <div className="dock-settings"><label htmlFor="dock-focus">Part focus</label><select id="dock-focus" value={focus} disabled={busy} onChange={e => setFocus(e.target.value as FocusRegion)}>
         {Object.entries(focusLabels).map(([value, label]) => <option value={value} key={value}>{label}</option>)}

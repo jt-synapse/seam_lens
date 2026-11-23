@@ -1,10 +1,10 @@
 import { getDbPool } from '@/lib/db';
+import { isLocalDemo } from '@/lib/local-demo';
 import { startArchetypeSession } from '@/modules/catalog/archetypes-repo';
 import { analyzeAndSearch } from '@/modules/search/analyze-service';
 import { executeLoggedSessionSearch } from '@/modules/search/hybrid-ranker';
 import { admitPublicSearch, publicSearchError, readAnalyzeRequest } from '@/modules/search/public-http';
-import { createGeminiTextEmbedder } from '@/modules/vision/gemini-text-embedder';
-import { createGeminiVisionExtractor } from '@/modules/vision/gemini-vision-extractor';
+import { createTextEmbedder, createVisionExtractor } from '@/modules/vision/production';
 import { assertDailyBudgetAvailable } from '@/modules/vision/usage-ledger';
 
 export const runtime = 'nodejs';
@@ -31,11 +31,11 @@ export async function POST(request: Request) {
       db,
       visionExtractor: {
         async extract(args) {
-          await assertDailyBudgetAvailable(db);
-          return createGeminiVisionExtractor(db).extract(args);
+          if (!isLocalDemo()) await assertDailyBudgetAvailable(db);
+          return createVisionExtractor(db).extract(args);
         },
       },
-      textEmbedder: { embedRegions: (...args) => createGeminiTextEmbedder(db).embedRegions(...args) },
+      textEmbedder: { embedRegions: (...args) => createTextEmbedder(db).embedRegions(...args) },
     }, { ...input, focusRegion: input.focusRegion ?? 'full_silhouette' }, startedAt);
     return Response.json(result);
   } catch (error) {

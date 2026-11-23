@@ -9,6 +9,7 @@ import {
   analyzeDiscoverySource, consumeDiscoveryHandoff, DiscoveryRequestError, queryDiscoverySession, readDiscoverySession,
   saveDiscoverySession, type DiscoverySession, type DiscoverySource,
 } from './discovery-session';
+import { useImageUrlPreview } from './demo-image-preview';
 import { PatternMatchCard } from './pattern-match-card';
 import { SewistFilterBar } from './sewist-filter-bar';
 import './discovery-workspace.css';
@@ -67,7 +68,9 @@ function previewUrl(source: DiscoverySource): string | null {
 function ReferenceImage({source}: {source: DiscoverySource}) {
   const [size, setSize] = useState<{width: number; height: number} | null>(null);
   const [failed, setFailed] = useState(false);
-  const url = previewUrl(source);
+  const validated = previewUrl(source);
+  const externalPreview = useImageUrlPreview(validated);
+  const url = source.kind === 'url' ? externalPreview : validated;
   if (failed || !url) return <p className="discovery-note">The reference image could not be displayed.</p>;
   const crop = source.kind === 'url' ? source.cropBox : null;
   const ratio = size && crop && crop.width > 0 && crop.height > 0

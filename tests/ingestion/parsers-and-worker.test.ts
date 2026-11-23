@@ -3,6 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { beforeAll, afterAll, beforeEach, expect, it, vi } from 'vitest';
+import { createClient } from '@supabase/supabase-js';
+import * as supabase from '@/lib/supabase/server';
+import { createIngestionWorkerDeps, fetchApprovedShopifyDrafts } from '@/modules/ingestion/production';
 import { seedSyntheticCatalog } from '../../supabase/seed/synthetic-catalog';
 import type { ConstructionProfileV1 } from '@/modules/taxonomy/construction-profile';
 import { parseSeamLensCsv, type NormalizedImportDraft } from '@/modules/ingestion/parsers';
@@ -262,4 +265,47 @@ it('keeps a parsed import out of public search until curated, then returns its s
   const coverKey = card.coverImageUrl.split('/catalog-media/').pop()!;
   expect(stored.has(coverKey)).toBe(true);
   expect(stored.has(coverKey.replace('-card.webp','-full.webp'))).toBe(true);
+});
+
+it('processes the demo Shopify feed into a review draft through real media preparation', async () => {
+  vi.stubEnv('SEAMLENS_LOCAL_DEMO', '1');
+  vi.stubEnv('DATABASE_URL', 'postgres://demo:fixture@127.0.0.1:5432/seamlens_demo');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:3101');
+  vi.stubEnv('VERCEL', undefined);
+  vi.stubEnv('GEMINI_API_KEY', '');
+  const files = new Map<string, Buffer>();
+  const client = createClient('http://127.0.0.1:3101', 'demo', {
+    global: { fetch: async (input, options) => {
+      const request = new Request(input, options);
+      const url = new URL(request.url);
+      expect(url.origin).toBe('http://127.0.0.1:3101');
+      expect(request.method).toBe('POST');
+      expect(request.headers.get('content-type')).toBe('image/webp');
+      files.set(url.pathname, Buffer.from(await request.arrayBuffer()));
+      return Response.json({ Key: url.pathname });
+    } },
+  });
+  const serviceClient = vi.spyOn(supabase, 'createSupabaseServiceClient').mockReturnValue(client);
+  try {
+    const { rows: [maker] } = await db.query<{ id: string }>("SELECT id FROM makers WHERE slug='maison-verveine'");
+    const drafts = await fetchApprovedShopifyDrafts(db, maker.id);
+    const { batchId } = await enqueueIngestionBatch(db, {
+      makerId: maker.id, sourceType: 'shopify_json', sourceDescriptor: 'Bundled Shopify feed', drafts, createdBy: randomUUID(),
+    });
+    const production = createIngestionWorkerDeps(db);
+    expect(await processNextIngestionChunk(production, batchId)).toMatchObject({ completed: 1, failed: 0, status: 'completed' });
+    const { rows } = await db.query(
+      "SELECT i.stage, v.embedding_model, v.construction_profile->'sleeves_and_armscye'->>'armscye_construction' AS armhole FROM ingestion_items i JOIN pattern_views v ON v.pattern_id=i.pattern_id WHERE i.batch_id=$1",
+      [batchId],
+    );
+    expect(rows).toEqual([{ stage: 'ready_for_review', embedding_model: 'deterministicTextToVector768', armhole: 'raglan' }]);
+    expect([...files.keys()].sort()).toEqual([
+      expect.stringMatching(/^\/storage\/v1\/object\/catalog-media\/maison-verveine\/.*\/default\/cover-.*-card\.webp$/),
+      expect.stringMatching(/^\/storage\/v1\/object\/catalog-media\/maison-verveine\/.*\/default\/cover-.*-full\.webp$/),
+    ]);
+    expect([...files.values()].every(bytes => bytes.toString('ascii', 8, 12) === 'WEBP')).toBe(true);
+  } finally {
+    serviceClient.mockRestore();
+    vi.unstubAllEnvs();
+  }
 });

@@ -71,3 +71,32 @@ it('provisions the default read bucket in Supabase and preserves an existing buc
     await db.close();
   }
 });
+
+it('keeps demo Shopify imports on the bundled Maison Verveine feed', async () => {
+  vi.stubEnv('SEAMLENS_LOCAL_DEMO', '1');
+  vi.stubEnv('DATABASE_URL', 'postgres://demo:fixture@127.0.0.1:5432/seamlens_demo');
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'http://127.0.0.1:3101');
+  vi.stubEnv('VERCEL', undefined);
+  const query = vi.fn().mockResolvedValue({ rows: [{ storefront_url: 'https://maisonverveine.example' }] });
+  const db = { query } as Queryable;
+  const offline = () => { throw new Error('Unexpected network access'); };
+  const transport = { resolve: offline, request: offline };
+  try {
+    const products = await fetchApprovedShopifyDrafts(db, 'maker', '/collections/demo', transport);
+    expect(products).toMatchObject([{
+      title: 'Demo Tansy Bishop Blouse',
+      sizeBands: [{ productUrl: 'https://maisonverveine.example/products/demo-tansy-bishop-blouse' }],
+      imageUrls: [{ url: 'https://demo.seamlens.test/samples/05-raglan-bishop.webp' }],
+    }]);
+    await expect(fetchApprovedShopifyDrafts(db, 'maker', '/products/demo-tansy-bishop-blouse', transport))
+      .resolves.toEqual(products);
+    await expect(fetchApprovedShopifyDrafts(db, 'maker', 'https://another.example/products.json', transport))
+      .rejects.toThrow(/demo/i);
+    await expect(fetchApprovedShopifyDrafts(db, 'maker', '/collections/not-in-demo', transport))
+      .rejects.toThrow(/demo/i);
+    query.mockResolvedValue({ rows: [{ storefront_url: 'https://another.example' }] });
+    await expect(fetchApprovedShopifyDrafts(db, 'maker', undefined, transport)).rejects.toThrow(/demo/i);
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});

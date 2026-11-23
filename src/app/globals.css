@@ -51,3 +51,17 @@
   .studio-editorial-text { padding: 24px; } .studio-scope { margin-bottom: .8rem; }
   .studio-intro { margin-top: .85rem; } .studio-home { padding-block-start: 16px; }
 }
+
+.local-demo-bar {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem 1.5rem;
+  padding: .5rem max(1rem, 5vw);
+  color: #fff8f0;
+  background: #543a30;
+  font: .83rem/1.5 system-ui, sans-serif;
+}
+.local-demo-bar nav { display: flex; gap: 1rem; }
+.local-demo-bar a { color: inherit; text-underline-offset: .16em; }

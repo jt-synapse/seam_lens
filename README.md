@@ -2,6 +2,23 @@
 
 SeamLens matches a garment photo to sewing patterns from approved makers using construction details such as neckline, sleeve and silhouette. Start at `/` with a garment photo, direct image URL or sample silhouette. At `/search`, refine matches by garment part, measurements, fabric, format and skill level. Curators manage the catalog at `/admin`. The offline benchmark is available. Public release acceptance is pending the permissioned staging catalog and human-graded queries. [Implementation checklist](docs/superpowers/plans/2026-11-22-seamlens-studio-v1.md#implementation-checklist)
 
+## Show Steph the app locally
+
+From the checkout that contains this README, start Docker and run:
+
+```sh
+bun install --frozen-lockfile
+bun run demo
+```
+
+Open the [presenter guide](http://127.0.0.1:3101/) on the same computer. It has the demo curator login, a sample photo, a direct image address and a catalog CSV. For a remote walkthrough, share the browser window. The public app and curator workspace share one temporary catalog.
+
+1. Start in [discovery](http://localhost:3100/). Upload the guide’s sample photo or paste its sample image address. Try a part focus and size filter, inspect a technical flat, then follow the maker link to see the selected pattern and size band.
+2. Open the [curator workspace](http://localhost:3100/admin). Import the sample CSV under **Maison Verveine**, open the new draft, review its construction and size band, and choose **Save & Re-Embed** and **Publish**. The guide also includes a sample Shopify workflow.
+3. Search again to see the published design. Use **Takedown** to remove it, then open **Telemetry** to see searches and maker clicks from the walkthrough.
+
+The demo runs the app’s PostgreSQL search, filters, catalog writes and click tracking. Local fixtures simulate photo analysis, embeddings, sign-in, media storage and maker storefronts. Use the sample photo to demonstrate a known match. Arbitrary photos receive a sample construction profile. The services bind to loopback. Press Ctrl+C in the launcher terminal to end the session. Each launch starts with a fresh synthetic catalog. The initial dependency install and Docker image download require internet access.
+
 ## Check a fresh checkout
 
 From the repository root, use Bun to install the locked dependencies and run the local checks. The default suite uses synthetic fixtures, PGlite and provider doubles.

@@ -4,6 +4,8 @@ import { request } from 'node:https';
 import { BlockList, isIP } from 'node:net';
 import { checkServerIdentity } from 'node:tls';
 import sharp from 'sharp';
+import { isLocalDemo } from '@/lib/local-demo';
+import { DEMO_REFERENCE_URL, getDemoImage } from '@/lib/local-demo-fixtures';
 
 import { SearchError } from './search-error';
 
@@ -276,6 +278,14 @@ export async function fetchPublicHttps(rawUrl: string, options: PublicFetchOptio
 }
 
 export async function fetchDirectImageUrlSafe(rawUrl: string, deps?: SafeImageTransport) {
+  if (isLocalDemo()) {
+    const fixture = getDemoImage(rawUrl);
+    if (!fixture) {
+      throw new SearchError('INVALID_INPUT', 422, 'Local demo URL search uses the bundled sample at ' + DEMO_REFERENCE_URL);
+    }
+    return fixture;
+  }
+
   const { bytes } = await fetchPublicHttps(rawUrl, {
     transport: deps,
     validateHeaders: (headers) => {

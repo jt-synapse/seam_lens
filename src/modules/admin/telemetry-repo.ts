@@ -10,6 +10,7 @@ export interface TelemetrySummary {
   p95LatencyMs: number | null;
   perMakerClicks: { makerId: string; makerName: string; clicks: number }[];
   dailySpendUsd: number;
+  dailyRequests: number;
   dailyBudgetUsd: number;
 }
 
@@ -22,6 +23,11 @@ export async function getTelemetrySummary(db: Queryable, windowDays: 7 | 30): Pr
         SELECT m.id, m.name, count(*)::float8 AS clicks
           FROM outbound_clicks c JOIN makers m ON m.id = c.maker_id, window_start
          WHERE c.created_at >= cutoff AND c.created_at <= now() GROUP BY m.id, m.name
+      ),
+      today_usage AS (
+        SELECT COALESCE(sum(estimated_cost_usd), 0)::float8 AS spend,
+               COALESCE(sum(request_count), 0)::float8 AS requests
+          FROM api_usage_ledger WHERE usage_date = (now() AT TIME ZONE 'UTC')::date
       )
       SELECT count(*)::float8 AS searches,
              percentile_cont(0.50) WITHIN GROUP (ORDER BY latency_ms) AS "p50LatencyMs",
@@ -29,8 +35,8 @@ export async function getTelemetrySummary(db: Queryable, windowDays: 7 | 30): Pr
              (SELECT COALESCE(sum(clicks), 0) FROM maker_clicks) AS clicks,
              (SELECT COALESCE(json_agg(json_build_object('makerId', id, 'makerName', name, 'clicks', clicks)
                        ORDER BY clicks DESC, name, id), '[]') FROM maker_clicks) AS "perMakerClicks",
-             (SELECT COALESCE(sum(estimated_cost_usd), 0)::float8 FROM api_usage_ledger
-               WHERE usage_date = (now() AT TIME ZONE 'UTC')::date) AS "dailySpendUsd"
+             (SELECT spend FROM today_usage) AS "dailySpendUsd",
+             (SELECT requests FROM today_usage) AS "dailyRequests"
         FROM search_events, window_start WHERE created_at >= cutoff AND created_at <= now()`, [windowDays],
   );
   return { ...row, outboundCtr: row.searches ? row.clicks / row.searches : 0, dailyBudgetUsd: getDailyAiBudgetUsd() };

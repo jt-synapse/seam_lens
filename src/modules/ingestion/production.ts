@@ -1,10 +1,14 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getDbPool, type Queryable } from '@/lib/db';
 import { getCatalogMediaBucket } from '@/lib/env';
+import { isLocalDemo } from '@/lib/local-demo';
+import {
+  DEMO_SHOPIFY_IMAGE_URL, DEMO_SHOPIFY_PRODUCT_HANDLE, DEMO_SHOPIFY_STOREFRONT,
+} from '@/lib/local-demo-fixtures';
 import { createSupabaseServiceClient } from '@/lib/supabase/server';
 import { fetchDirectImageUrlSafe, fetchPublicHttps, type SafeImageTransport } from '@/modules/search/image-ingest';
-import { createGeminiTextEmbedder } from '@/modules/vision/gemini-text-embedder';
-import { createGeminiVisionExtractor } from '@/modules/vision/gemini-vision-extractor';
+import { createDemoGalleryClassifier } from '@/modules/vision/local-demo-models';
+import { createTextEmbedder, createVisionExtractor } from '@/modules/vision/production';
 import type { IngestionWorkerDeps } from './chunk-worker';
 import { createGalleryClassifier } from './gallery-classifier';
 import { createGalleryPreparer } from './media-pipeline';
@@ -27,12 +31,12 @@ export function createCatalogMediaWriter(client: SupabaseClient, bucket: string)
 export function createIngestionWorkerDeps(db: Queryable = getDbPool()): IngestionWorkerDeps {
   return {
     db,
-    vision: createGeminiVisionExtractor(db),
-    embedder: createGeminiTextEmbedder(db),
+    vision: createVisionExtractor(db),
+    embedder: createTextEmbedder(db),
     prepareGallery: createGalleryPreparer({
       fetchImage: fetchDirectImageUrlSafe,
       write: createCatalogMediaWriter(createSupabaseServiceClient(), getCatalogMediaBucket()),
-      classify: createGalleryClassifier(db),
+      classify: isLocalDemo() ? createDemoGalleryClassifier(db) : createGalleryClassifier(db),
     }),
   };
 }
@@ -61,6 +65,24 @@ export async function fetchApprovedShopifyDrafts(
   }
   const pageSize = 250;
   if (!single) url.searchParams.set('limit', String(pageSize));
+  if (isLocalDemo()) {
+    if (storefront.origin !== DEMO_SHOPIFY_STOREFRONT || url.origin !== storefront.origin ||
+        url.username || url.password || url.hash || [...url.searchParams.keys()].some(key => key !== 'limit') ||
+        !['/products.json', '/collections/demo/products.json', '/products/' + DEMO_SHOPIFY_PRODUCT_HANDLE + '.json'].includes(url.pathname)) {
+      throw new Error('The local demo Shopify feed is available for Maison Verveine at /products.json, /collections/demo and /products/' + DEMO_SHOPIFY_PRODUCT_HANDLE);
+    }
+    return parseShopifyProductsJson({
+      currency: 'USD',
+      products: [{
+        id: 'demo-tansy-bishop-blouse',
+        title: 'Demo Tansy Bishop Blouse',
+        handle: DEMO_SHOPIFY_PRODUCT_HANDLE,
+        body_html: '<p>A woven blouse with gathered bishop sleeves and a keyhole neckline.</p>',
+        variants: [{ price: '14.00' }],
+        images: [{ src: DEMO_SHOPIFY_IMAGE_URL }],
+      }],
+    }, storefront.href);
+  }
   let next = url;
   let totalBytes = 0;
   let feedCurrency: unknown;

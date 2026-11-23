@@ -1,5 +1,6 @@
 import { after, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { demoMakerDestination, isLocalDemo } from '@/lib/local-demo';
 import { getDbPool } from '@/lib/db';
 import { buildTrackedDestinationUrl } from '@/modules/catalog/outbound-url';
 import { FocusRegionSchema } from '@/modules/taxonomy/construction-profile';
@@ -23,10 +24,11 @@ export async function GET(request: Request, context: { params: Promise<{ pattern
   const db = getDbPool();
   const { rows: [target] } = await db.query<{
     band_id: string; maker_id: string; view_id: string | null; product_url: string;
+    maker_name: string; pattern_title: string; band_label: string;
     utm_campaign_slug: string; affiliate_query_param: string | null;
   }>(
     `SELECT b.id AS band_id, p.maker_id, v.id AS view_id, b.product_url,
-            m.utm_campaign_slug, m.affiliate_query_param
+            m.name AS maker_name, p.title AS pattern_title, b.band_label, m.utm_campaign_slug, m.affiliate_query_param
      FROM patterns p JOIN makers m ON m.id = p.maker_id
      JOIN pattern_size_bands b ON b.pattern_id = p.id AND b.maker_id = p.maker_id
      LEFT JOIN pattern_views v ON v.pattern_id = p.id AND v.id = $3::uuid
@@ -50,5 +52,6 @@ export async function GET(request: Request, context: { params: Promise<{ pattern
       [patternId, target.band_id, target.view_id, target.maker_id, session, rank, focus, destination],
     );
   });
-  return NextResponse.redirect(destination, { status: 302, headers: uncached });
+  const location = isLocalDemo() ? demoMakerDestination(target.maker_name, target.pattern_title, target.band_label) : destination;
+  return NextResponse.redirect(location, { status: 302, headers: uncached });
 }

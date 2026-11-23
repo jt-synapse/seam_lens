@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getDbPool } from '@/lib/db';
+import { isLocalDemo } from '@/lib/local-demo';
 import { requireAtelierAdmin, withAccessBoundary } from '../access';
 import { getTelemetrySummary } from '@/modules/admin/telemetry-repo';
 import { Shell } from '../Shell';
@@ -22,9 +23,12 @@ export default async function TelemetryPage({searchParams}: {searchParams:Promis
       {data.perMakerClicks.length ? <table><thead><tr><th>Pattern house</th><th>Outbound clicks</th></tr></thead>
         <tbody>{data.perMakerClicks.map(m=><tr key={m.makerId}><td>{m.makerName}</td><td>{m.clicks}</td></tr>)}</tbody></table> :
         <p>No outbound clicks in this period.</p>}</section>
-      <section className="admin-panel"><h2>Today’s AI spend</h2>
+      {isLocalDemo() ? <section className="admin-panel"><h2>Today’s simulated model activity</h2>
+        <p className="admin-number">{data.dailyRequests.toLocaleString()}</p>
+        <p>Simulated requests · UTC · ${data.dailySpendUsd.toFixed(4)} in provider charges</p></section>
+        : <section className="admin-panel"><h2>Today’s AI spend</h2>
         <p className="admin-number">${data.dailySpendUsd.toFixed(4)}</p><p>of ${data.dailyBudgetUsd.toFixed(2)} daily budget · UTC</p>
-        <progress aria-label="Daily AI budget used" value={data.dailySpendUsd} max={data.dailyBudgetUsd || 1}/></section>
+        <progress aria-label="Daily AI budget used" value={data.dailySpendUsd} max={data.dailyBudgetUsd || 1}/></section>}
     </div>
   </Shell>;
 }

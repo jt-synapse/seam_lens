@@ -291,14 +291,14 @@ it('measures successful search events and clicks in separate rolling windows and
   await db.exec(`INSERT INTO search_events (source_type,focus_region,filters_applied,result_count,latency_ms,created_at)
     VALUES ('upload','full_silhouette','{}',0,100,now()),('filter_refinement','full_silhouette','{}',1,200,now()-interval '5 days'),
       ('url','full_silhouette','{}',1,300,now()-interval '15 days'),('upload','full_silhouette','{}',9,900,now()-interval '31 days');
-    INSERT INTO api_usage_ledger (usage_date,operation,estimated_cost_usd) VALUES
-      ((now() AT TIME ZONE 'UTC')::date,'ingest_embed',0.75),((now() AT TIME ZONE 'UTC')::date - 1,'search_vision',1.50)`);
+    INSERT INTO api_usage_ledger (usage_date,operation,request_count,estimated_cost_usd) VALUES
+      ((now() AT TIME ZONE 'UTC')::date,'ingest_embed',3,0.75),((now() AT TIME ZONE 'UTC')::date - 1,'search_vision',5,1.50)`);
   await db.query(`INSERT INTO outbound_clicks (pattern_id,maker_id,destination_url,created_at)
     VALUES ($1,$2,'https://maker.example',now()),($1,$2,'https://maker.example',now()-interval '8 days')`,[form.patternId,form.makerId]);
   expect(await getTelemetrySummary(db,7)).toMatchObject({ searches:2, clicks:1, outboundCtr:0.5,
-    p50LatencyMs:150,p95LatencyMs:195,dailySpendUsd:0.75,perMakerClicks:[{makerId:form.makerId,clicks:1}] });
+    p50LatencyMs:150,p95LatencyMs:195,dailySpendUsd:0.75,dailyRequests:3,perMakerClicks:[{makerId:form.makerId,clicks:1}] });
   expect(await getTelemetrySummary(db,30)).toMatchObject({ searches:3, clicks:2, outboundCtr:2/3,
-    p50LatencyMs:200,p95LatencyMs:290,dailySpendUsd:0.75,perMakerClicks:[{makerId:form.makerId,clicks:2}] });
+    p50LatencyMs:200,p95LatencyMs:290,dailySpendUsd:0.75,dailyRequests:3,perMakerClicks:[{makerId:form.makerId,clicks:2}] });
   await db.exec('TRUNCATE search_events');
   expect(await getTelemetrySummary(db,7)).toMatchObject({ searches:0,clicks:1,outboundCtr:0,p50LatencyMs:null,p95LatencyMs:null });
 });
