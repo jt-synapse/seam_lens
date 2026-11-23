@@ -86,3 +86,25 @@ export function getCatalogMediaBucket(): string {
 export function getRateLimitIpSalt(): string {
   return getServerEnv().RATE_LIMIT_IP_SALT;
 }
+
+// Gemini Developer API standard paid-tier prices, USD per million tokens.
+// https://ai.google.dev/gemini-api/docs/pricing (2026-11-22).
+// Keep each model paired with the request shape and bounds tested by its adapter.
+const tokenPrice = z.coerce.number().finite().positive();
+const GeminiConfigSchema = z.object({
+  visionModel: z.literal('gemini-3.5-flash-lite').default('gemini-3.5-flash-lite'),
+  embeddingModel: z.literal('gemini-embedding-001').default('gemini-embedding-001'),
+  visionInputUsdPerMillion: tokenPrice.default(0.30),
+  visionOutputUsdPerMillion: tokenPrice.default(2.50),
+  embeddingInputUsdPerMillion: tokenPrice.default(0.15),
+});
+
+export function getGeminiConfig(): z.infer<typeof GeminiConfigSchema> {
+  return GeminiConfigSchema.parse({
+    visionModel: process.env.GEMINI_VISION_MODEL,
+    embeddingModel: process.env.GEMINI_EMBEDDING_MODEL,
+    visionInputUsdPerMillion: process.env.GEMINI_VISION_INPUT_USD_PER_MILLION,
+    visionOutputUsdPerMillion: process.env.GEMINI_VISION_OUTPUT_USD_PER_MILLION,
+    embeddingInputUsdPerMillion: process.env.GEMINI_EMBEDDING_INPUT_USD_PER_MILLION,
+  });
+}
