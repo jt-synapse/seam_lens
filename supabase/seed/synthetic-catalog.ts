@@ -2043,13 +2043,13 @@ export async function seedSyntheticCatalog(db: Queryable): Promise<{
             cover_image_path, flat_front_image_path, flat_back_image_path,
             construction_profile, canonical_texts,
             vec_full, vec_bodice, vec_sleeves, vec_skirt,
-            ai_confidence, human_verified
+            ai_confidence, human_verified, embedding_model
           ) VALUES (
             $1, $2, $3, $4, $5,
             $6, $7, $8,
             $9::jsonb, $10::jsonb,
             $11::vector, $12::vector, $13::vector, $14::vector,
-            0.98, true
+            0.98, true, 'deterministicTextToVector768'
           )
           ON CONFLICT (pattern_id, view_code) DO UPDATE SET
             view_label = EXCLUDED.view_label,
@@ -2064,6 +2064,7 @@ export async function seedSyntheticCatalog(db: Queryable): Promise<{
             vec_bodice = EXCLUDED.vec_bodice,
             vec_sleeves = EXCLUDED.vec_sleeves,
             vec_skirt = EXCLUDED.vec_skirt,
+            embedding_model = EXCLUDED.embedding_model,
             ai_confidence = EXCLUDED.ai_confidence,
             human_verified = EXCLUDED.human_verified,
             updated_at = now()`,

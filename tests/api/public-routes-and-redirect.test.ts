@@ -47,7 +47,7 @@ const sessionCount = async () => (await db.query<{ n: number }>('SELECT count(*)
 
 beforeAll(async () => {
   db = new PGlite({ extensions: { vector } });
-  for (const name of ['202611220001_init_seamlens_v1.sql', '202611220002_catalog_integrity.sql', '202611220003_ai_budget.sql', '202611220007_search_session_crop.sql']) {
+  for (const name of ['202611220001_init_seamlens_v1.sql', '202611220002_catalog_integrity.sql', '202611220003_ai_budget.sql', '202611220007_search_session_crop.sql', '202611220008_model_provenance.sql']) {
     await db.exec(await readFile(new URL('../../supabase/migrations/' + name, import.meta.url), 'utf8'));
   }
   await seedSyntheticCatalog(db);

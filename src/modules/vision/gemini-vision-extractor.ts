@@ -199,7 +199,7 @@ export function createGeminiVisionExtractor(db: Queryable, client?: VisionClient
           estimatedCostUsd: costUsd(inputTokens, outputTokens),
         };
       });
-      return { ...parseResponse(response), inputTokens, outputTokens };
+      return { ...parseResponse(response), modelId: visionModel, inputTokens, outputTokens };
     },
   };
 }

@@ -77,7 +77,7 @@ describe('Gemini vision extraction', () => {
     const extractor = createGeminiVisionExtractor(db, { models: { generateContent } });
 
     const result = await extractor.extract({ images, mode, contextText: 'View A' });
-    expect(result).toEqual({ ...envelope, inputTokens: 1250, outputTokens: 400 });
+    expect(result).toEqual({ ...envelope, modelId: generateContent.mock.calls[0][0].model, inputTokens: 1250, outputTokens: 400 });
     expect(generateContent).toHaveBeenCalledOnce();
     expect(generateContent.mock.calls[0]?.[0]).toMatchObject({
       model: 'gemini-3.5-flash-lite',

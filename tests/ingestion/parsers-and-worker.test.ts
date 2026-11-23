@@ -31,7 +31,7 @@ beforeEach(async () => {
   const v = Array(768).fill(0.1);
   deps = { db, prepareGallery: vi.fn(async () => ['A','B'].map(viewCode => ({viewCode, viewLabel:viewCode, images: (['cover','flat_front'] as const).map(role => ({role, mimeType:'image/webp', bytes, fullPath:role+'-full.webp', cardPath:role+'-card.webp'}))}))),
     vision: { extract: vi.fn(async () => ({profile, status:'ok' as const, aiConfidence:.75, warnings:[], inputTokens:1,outputTokens:1})) },
-    embedder: { embedRegions: vi.fn(async () => ({vectors:{full:v,bodice:v,sleeves:v,skirt:v},inputTokens:1})) } };
+    embedder: { embedRegions: vi.fn(async () => ({modelId:'test-ingest',vectors:{full:v,bodice:v,sleeves:v,skirt:v},inputTokens:1})) } };
 });
 it('checks maker permission on enqueue, claim and before final writes', async () => {
   await status('pending');
@@ -66,6 +66,8 @@ it('keeps stable IDs, preserves curated views and records incomplete bands for r
   const ids = async () => (await db.query('select b.id as band,v.id as view from pattern_size_bands b join pattern_views v using(pattern_id) where b.pattern_id=$1 order by v.view_code',[first.pattern_id])).rows;
   const original = await ids();
   expect(original).toHaveLength(2);
+  expect((await db.query('select distinct embedding_model from pattern_views where pattern_id=$1',
+    [first.pattern_id])).rows).toEqual([{embedding_model:'test-ingest'}]);
   await run(draft);
   expect(await ids()).toEqual(original);
   await db.query('update pattern_views set human_verified=true where pattern_id=$1',[first.pattern_id]);

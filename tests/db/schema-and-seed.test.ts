@@ -30,6 +30,8 @@ const integrityMigration = fs.readFileSync(
   'utf8'
 );
 
+const provenanceMigration = fs.readFileSync(path.join(migrationsDirectory, '202611220008_model_provenance.sql'), 'utf8');
+
 const sampleQueryProfile: ConstructionProfileV1 = ConstructionProfileV1Schema.parse({
   schema_version: 1,
   garment_category: 'dress',
@@ -80,6 +82,7 @@ describe('PostgreSQL + pgvector schema, publish guardrails, and synthetic seed',
     pg = new PGlite({ extensions: { vector } });
     await pg.exec(initialMigration);
     await pg.exec(integrityMigration);
+    await pg.exec(provenanceMigration);
   });
 
   afterAll(async () => {
@@ -572,6 +575,7 @@ describe('PostgreSQL + pgvector schema, publish guardrails, and synthetic seed',
         GRANT ALL ON TABLES TO anon, authenticated, service_role, PUBLIC;
     `);
     await rlsPg.exec(initialMigration);
+    await rlsPg.exec(provenanceMigration);
 
     const counts = await seedSyntheticCatalog(rlsPg);
     expect(counts.patternCount).toBe(18);

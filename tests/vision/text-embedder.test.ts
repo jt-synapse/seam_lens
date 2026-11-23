@@ -67,6 +67,7 @@ describe('Gemini region embeddings', () => {
         outputDimensionality: 768,
       })),
     });
+    expect(result.modelId).toBe('gemini-embedding-001');
     expect(result.vectors).toEqual({
       full: vector(0.6, 0.8),
       bodice: vector(-1),

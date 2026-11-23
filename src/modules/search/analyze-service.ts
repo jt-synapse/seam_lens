@@ -45,7 +45,7 @@ export async function analyzeAndSearch(
   }
 
   const visionStartedAt = performance.now();
-  const { status, profile, warnings } = await visionExtractor.extract({
+  const { status, profile, warnings, modelId: visionModel } = await visionExtractor.extract({
     images: [{ mimeType: 'image/webp', bytes: webpBytes }],
     mode: 'live_query',
   });
@@ -60,19 +60,19 @@ export async function analyzeAndSearch(
 
   const canonical = serializeCanonicalRegions(profile);
   const embedStartedAt = performance.now();
-  const { vectors } = await textEmbedder.embedRegions(canonical, 'RETRIEVAL_QUERY');
+  const { vectors, modelId: embeddingModel } = await textEmbedder.embedRegions(canonical, 'RETRIEVAL_QUERY');
   const embedMs = Math.round(performance.now() - embedStartedAt);
 
   const { rows: [{ id }] } = await db.query<{ id: string }>(
     `INSERT INTO query_sessions
        (image_sha256, crop_box, query_status, extracted_profile, canonical_texts,
-        vec_full, vec_bodice, vec_sleeves, vec_skirt, warnings, vision_ms, embed_ms, client_cropped)
+        vec_full, vec_bodice, vec_sleeves, vec_skirt, warnings, vision_ms, embed_ms, client_cropped, vision_model, embedding_model)
      VALUES ($1, $2::jsonb, $3, $4::jsonb, $5::jsonb,
-             $6::vector, $7::vector, $8::vector, $9::vector, $10, $11, $12, $13)
+             $6::vector, $7::vector, $8::vector, $9::vector, $10, $11, $12, $13, $14, $15)
      RETURNING id`,
     [sha256, cropBox, status, JSON.stringify(profile), JSON.stringify(canonical),
       toVectorLiteral(vectors.full), toVectorLiteral(vectors.bodice), toVectorLiteral(vectors.sleeves),
-      toVectorLiteral(vectors.skirt), warnings, visionMs, embedMs, cropApplied],
+      toVectorLiteral(vectors.skirt), warnings, visionMs, embedMs, cropApplied, visionModel ?? null, embeddingModel ?? null],
   );
 
   return executeLoggedSessionSearch(db, id, input.focusRegion, input.filters, input.source, startedAt);

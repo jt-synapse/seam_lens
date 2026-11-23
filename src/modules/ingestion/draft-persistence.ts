@@ -12,6 +12,7 @@ export type ExtractedView = {
   partialVisibility: boolean;
   texts: CanonicalRegionTexts;
   vectors: RegionVectors;
+  embeddingModel?: string;
 };
 
 function validBounds(band: RawSizeBandCandidate, category: string) {
@@ -62,19 +63,20 @@ async function storeView(tx: Queryable, patternId: string, extracted: ExtractedV
     `INSERT INTO pattern_views (
         pattern_id, view_code, view_label, garment_category, is_primary_view, cover_image_path,
         flat_front_image_path, flat_back_image_path, construction_profile, canonical_texts,
-        vec_full, vec_bodice, vec_sleeves, vec_skirt, ai_confidence
-     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        vec_full, vec_bodice, vec_sleeves, vec_skirt, ai_confidence, embedding_model
+     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
      ON CONFLICT (pattern_id, view_code) DO UPDATE SET
        view_label = excluded.view_label, garment_category = excluded.garment_category,
        is_primary_view = excluded.is_primary_view, cover_image_path = excluded.cover_image_path,
        flat_front_image_path = excluded.flat_front_image_path, flat_back_image_path = excluded.flat_back_image_path,
        construction_profile = excluded.construction_profile, canonical_texts = excluded.canonical_texts,
        vec_full = excluded.vec_full, vec_bodice = excluded.vec_bodice, vec_sleeves = excluded.vec_sleeves,
-       vec_skirt = excluded.vec_skirt, ai_confidence = excluded.ai_confidence, updated_at = now()`,
+       vec_skirt = excluded.vec_skirt, embedding_model = excluded.embedding_model,
+       ai_confidence = excluded.ai_confidence, updated_at = now()`,
     [patternId, view.viewCode, view.viewLabel, profile.garment_category, isPrimary,
       cover.cardPath, front?.fullPath ?? null, back?.fullPath ?? null, JSON.stringify(profile),
       JSON.stringify(texts), toVectorLiteral(vectors.full), toVectorLiteral(vectors.bodice),
-      toVectorLiteral(vectors.sleeves), toVectorLiteral(vectors.skirt), confidence]
+      toVectorLiteral(vectors.sleeves), toVectorLiteral(vectors.skirt), confidence, extracted.embeddingModel ?? null]
   );
 }
 

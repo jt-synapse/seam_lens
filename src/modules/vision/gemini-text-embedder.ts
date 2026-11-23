@@ -140,7 +140,7 @@ export function createGeminiTextEmbedder(db: Queryable, client?: GeminiEmbedding
         }
         return normalizeVector(embedding?.values);
       });
-      return { vectors: { full, bodice, sleeves, skirt }, inputTokens };
+      return { modelId: embeddingModel, vectors: { full, bodice, sleeves, skirt }, inputTokens };
     },
   };
 }

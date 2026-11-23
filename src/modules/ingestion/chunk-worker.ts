@@ -178,10 +178,10 @@ async function extractViews(
     }
     const texts = serializeCanonicalRegions(result.profile);
     await assertActive();
-    const { vectors } = await deps.embedder.embedRegions(texts, 'RETRIEVAL_DOCUMENT');
+    const { vectors, modelId: embeddingModel } = await deps.embedder.embedRegions(texts, 'RETRIEVAL_DOCUMENT');
     views.push({
       view, profile: result.profile, confidence: result.aiConfidence,
-      partialVisibility: result.status === 'low_visibility_partial', texts, vectors,
+      partialVisibility: result.status === 'low_visibility_partial', texts, vectors, embeddingModel,
     });
   }
   return views;

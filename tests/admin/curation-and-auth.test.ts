@@ -93,11 +93,11 @@ describe('verified curation', () => {
     }));
     const embedder = createGeminiTextEmbedder(db, { models: { embedContent } });
     await savePatternViewCuration({ db, embedder }, form);
-    const { rows: [view] } = await db.query<{canonical:string;full:string}>(`SELECT human_verified, verified_by, verified_at IS NOT NULL AS reviewed,
+    const { rows: [view] } = await db.query<{canonical:string;full:string}>(`SELECT embedding_model, human_verified, verified_by, verified_at IS NOT NULL AS reviewed,
        construction_profile #>> '{bodice_and_neckline,neckline_type}' AS neckline,
        canonical_texts->>'full_silhouette' AS canonical, vector_norm(vec_full) AS norm,
        vec_full::text AS full FROM pattern_views WHERE id=$1`, [form.viewId]);
-    expect(view).toMatchObject({ human_verified: true, reviewed: true, verified_by: user.id, neckline: 'sweetheart', norm: 1 });
+    expect(view).toMatchObject({ embedding_model: 'gemini-embedding-001', human_verified: true, reviewed: true, verified_by: user.id, neckline: 'sweetheart', norm: 1 });
     expect(view.canonical).toContain('neckline: sweetheart');
     expect(JSON.parse(String(view.full))).toEqual(unit);
     expect(await db.query("SELECT skill_level,formats FROM patterns WHERE id=$1", [form.patternId]))

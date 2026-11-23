@@ -22,10 +22,10 @@ describe('image analysis and real pgvector hybrid ranking', () => {
 
   function fixtures(status: VisionExtractionResult['status'], profile: ConstructionProfileV1 | null) {
     const extract = vi.fn<AnalyzeDeps['visionExtractor']['extract']>().mockResolvedValue({
-      status, profile, aiConfidence: 0.9, warnings: [], inputTokens: 1, outputTokens: 1,
+      status, profile, modelId: 'test-vision', aiConfidence: 0.9, warnings: [], inputTokens: 1, outputTokens: 1,
     });
     const embedRegions = vi.fn<AnalyzeDeps['textEmbedder']['embedRegions']>().mockImplementation(async (texts) => ({
-      inputTokens: 1,
+      modelId: 'test-query', inputTokens: 1,
       vectors: {
         full: deterministicTextToVector768(texts.full_silhouette),
         bodice: deterministicTextToVector768(texts.bodice_neckline),
@@ -42,7 +42,7 @@ describe('image analysis and real pgvector hybrid ranking', () => {
 
   beforeAll(async () => {
     db = new PGlite({ extensions: { vector } });
-    for (const file of ['202611220001_init_seamlens_v1.sql', '202611220002_catalog_integrity.sql', '202611220007_search_session_crop.sql']) {
+    for (const file of ['202611220001_init_seamlens_v1.sql', '202611220002_catalog_integrity.sql', '202611220007_search_session_crop.sql', '202611220008_model_provenance.sql']) {
       await db.exec(await readFile(new URL(`../../supabase/migrations/${file}`, import.meta.url), 'utf8'));
     }
     await seedSyntheticCatalog(db);
@@ -78,6 +78,8 @@ describe('image analysis and real pgvector hybrid ranking', () => {
   it('ranks the square-neck dress first, deduplicates its views, and logs successful analyses including cache hits', async () => {
     const deps = fixtures('ok', dress);
     const first = await analyzeAndSearch(deps, upload());
+    expect((await db.query('SELECT vision_model, embedding_model FROM query_sessions WHERE id=$1',
+      [first.querySessionId])).rows).toEqual([{ vision_model: 'test-vision', embedding_model: 'test-query' }]);
     expect(first.results[0]).toMatchObject({ patternId: flagshipId, bustRangeIn: [32, 62] });
     expect(first.results[0].secondaryViewCount).toBeGreaterThanOrEqual(1);
     expect(first.results.slice(0, 3).map(({ patternId }) => patternId)).not.toContain(decoyId);

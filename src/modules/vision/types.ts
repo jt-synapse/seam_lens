@@ -11,6 +11,7 @@ export type RegionVectors = {
 export type VisionExtractionMode = 'live_query' | 'catalog_ingestion';
 
 export type VisionExtractionResult = {
+  modelId?: string;
   status: 'ok' | 'no_garment_detected' | 'unsupported_category_v1' | 'low_visibility_partial';
   profile: ConstructionProfileV1 | null;
   aiConfidence: number;
@@ -31,7 +32,7 @@ export type TextEmbedder = {
   embedRegions(
     texts: CanonicalRegionTexts,
     taskType: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT',
-  ): Promise<{ vectors: RegionVectors; inputTokens: number }>;
+  ): Promise<{ modelId?: string; vectors: RegionVectors; inputTokens: number }>;
 };
 
 export class GeminiResponseError extends Error {

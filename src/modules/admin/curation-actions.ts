@@ -152,7 +152,7 @@ export async function savePatternViewCuration(deps: CurationDeps, input: Curatio
   await getEditableParent(deps.db, edit, false);
   const profile = edit.constructionProfile;
   const texts = serializeCanonicalRegions(profile);
-  const { vectors } = await deps.embedder.embedRegions(texts, 'RETRIEVAL_DOCUMENT');
+  const { vectors, modelId: embeddingModel } = await deps.embedder.embedRegions(texts, 'RETRIEVAL_DOCUMENT');
   if ((vectors.skirt === null) !== (texts.skirt_hemline === null)) throw new Error('Incorrect skirt embedding.');
   const vectorColumns = [documentVector(vectors.full), documentVector(vectors.bodice),
     documentVector(vectors.sleeves), vectors.skirt === null ? null : documentVector(vectors.skirt)];
@@ -164,8 +164,8 @@ export async function savePatternViewCuration(deps: CurationDeps, input: Curatio
     await tx.query(`UPDATE pattern_views SET construction_profile=$2, canonical_texts=$3,
         vec_full=$4::vector, vec_bodice=$5::vector, vec_sleeves=$6::vector, vec_skirt=$7::vector,
         human_verified=true, verified_by=$8, verified_at=greatest(clock_timestamp(), updated_at + interval '1 microsecond'),
-        garment_category=$9 WHERE id=$1`,
-      [edit.viewId, JSON.stringify(profile), JSON.stringify(texts), ...vectorColumns, admin.userId, profile.garment_category]);
+        garment_category=$9, embedding_model=$10 WHERE id=$1`,
+      [edit.viewId, JSON.stringify(profile), JSON.stringify(texts), ...vectorColumns, admin.userId, profile.garment_category, embeddingModel ?? null]);
     await tx.query(`UPDATE patterns SET substrate_type=$2, formats=$3, skill_level=$4, garment_category=$5
        WHERE id=$1`, [parent.id, edit.substrateType, edit.formats, edit.skillLevel, parent.garment_category]);
     await resolveReviewFlags(tx, parent.id);
