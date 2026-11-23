@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "garment_category": "top",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "boxy_cropped",
+    "ease_level": "semi_fitted",
+    "garment_length": "cropped"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "square",
+    "neckline_depth": "modest_mid",
+    "collar_type": "none",
+    "shaping_darts_seams": [
+      "bust_dart",
+      "waist_dart"
+    ],
+    "waist_definition": "no_waist_seam_continuous",
+    "back_detail": "tie_back"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "set_in",
+    "sleeve_style": "puff_gathered_cap",
+    "sleeve_length": "short",
+    "cuff_finish": "elastic_casing"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": false,
+    "skirt_construction": "none_top_hem",
+    "tier_count": 0,
+    "slit_detail": "none",
+    "hemline_shape": "straight_level",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "pullover_no_closure",
+    "finish_structure": "lined_bodice"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "The square opening has a flat lower edge over a darted front and a back tie.",
+    "sleeves_armscye": "Gathered round shoulder with a narrow elastic sleeve opening.",
+    "skirt_hemline": "Level crop ends near the waist.",
+    "overall_drape_and_proportions": "A fitted bust eases into a short body."
+  }
+}

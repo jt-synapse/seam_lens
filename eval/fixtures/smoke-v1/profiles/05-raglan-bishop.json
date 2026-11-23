@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "garment_category": "top",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "shirt_dress_blouse",
+    "ease_level": "relaxed",
+    "garment_length": "hip_length"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "keyhole",
+    "neckline_depth": "high",
+    "collar_type": "none",
+    "shaping_darts_seams": [
+      "gathers_yoke"
+    ],
+    "waist_definition": "no_waist_seam_continuous",
+    "back_detail": "unknown"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "raglan",
+    "sleeve_style": "bishop",
+    "sleeve_length": "wrist_long",
+    "cuff_finish": "elastic_casing"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": false,
+    "skirt_construction": "none_top_hem",
+    "tier_count": 0,
+    "slit_detail": "none",
+    "hemline_shape": "curved_shirt_tail",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "hook_keyhole",
+    "finish_structure": "unknown"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "A short center-front opening breaks the rounded neckline.",
+    "sleeves_armscye": "Neck-to-underarm diagonals mark the raglan join, with fullness concentrated at the cased wrist.",
+    "skirt_hemline": "The shirttail hem curves below the hip.",
+    "overall_drape_and_proportions": "A softly gathered top hangs loose from the shoulder."
+  }
+}

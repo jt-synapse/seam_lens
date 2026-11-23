@@ -10,7 +10,7 @@ import { enforceRateLimit } from './rate-limit';
 import { SearchError } from './search-error';
 import { MAX_MULTIPART_BYTES, MAX_UPLOAD_BYTES } from './upload-limits';
 
-const filters = z.object({
+export const searchFiltersSchema = z.object({
   substrate: z.enum(['woven', 'knit']).nullish(),
   userBustIn: z.number().finite().positive().nullish(),
   userHipIn: z.number().finite().positive().nullish(),
@@ -21,7 +21,7 @@ const cropBox = z.object({
   x: z.number().finite().nonnegative(), y: z.number().finite().nonnegative(),
   width: z.number().finite().positive(), height: z.number().finite().positive(),
 }).strict().refine(crop => crop.x + crop.width <= 1 && crop.y + crop.height <= 1).nullish();
-const searchOptions = { focusRegion: FocusRegionSchema.optional(), filters };
+const searchOptions = { focusRegion: FocusRegionSchema.optional(), filters: searchFiltersSchema };
 const urlInput = z.object({ ...searchOptions, imageUrl: z.string().url(), cropBox }).strict();
 const archetypeInput = z.object({ ...searchOptions, archetypeSlug: z.string().trim().min(1) }).strict();
 const uploadOptions = z.object({ ...searchOptions, cropBox, cropApplied: z.boolean().optional() })

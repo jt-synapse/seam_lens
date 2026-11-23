@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "garment_category": "dress",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "a_line",
+    "ease_level": "semi_fitted",
+    "garment_length": "midi"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "off_shoulder",
+    "neckline_depth": "modest_mid",
+    "collar_type": "none",
+    "shaping_darts_seams": [
+      "princess_seam_armscye"
+    ],
+    "waist_definition": "elasticated_waist",
+    "back_detail": "unknown"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "dropped_shoulder",
+    "sleeve_style": "fluted_flare",
+    "sleeve_length": "elbow",
+    "cuff_finish": "none_hemmed"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": true,
+    "skirt_construction": "gored_panels",
+    "tier_count": 0,
+    "slit_detail": "side_slit",
+    "hemline_shape": "straight_level",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "pullover_no_closure",
+    "finish_structure": "unknown"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "A gently gathered band exposes both shoulders.",
+    "sleeves_armscye": "Fluted sleeve spreads from a low shoulder join.",
+    "skirt_hemline": "Vertical skirt gores spread gradually to a level edge with a side opening.",
+    "overall_drape_and_proportions": "Fitted above the hip and spread beneath it."
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "garment_category": "dress",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "fit_and_flare",
+    "ease_level": "close_fitting",
+    "garment_length": "midi"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "boat_bateau",
+    "neckline_depth": "high",
+    "collar_type": "none",
+    "shaping_darts_seams": [
+      "princess_seam_shoulder"
+    ],
+    "waist_definition": "natural_seam",
+    "back_detail": "unknown"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "set_in",
+    "sleeve_style": "cap",
+    "sleeve_length": "cap",
+    "cuff_finish": "none_hemmed"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": true,
+    "skirt_construction": "pleated_box_knife",
+    "tier_count": 0,
+    "slit_detail": "none",
+    "hemline_shape": "straight_level",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "invisible_zip_back",
+    "finish_structure": "unknown"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "Broad shallow opening and long shoulder seams.",
+    "sleeves_armscye": "Small cap sits close to the upper arm.",
+    "skirt_hemline": "Opposing folds form wide boxes joined at a flat waist seam and reopen toward the hem.",
+    "overall_drape_and_proportions": "A fitted top sits above a crisp expanded skirt."
+  }
+}

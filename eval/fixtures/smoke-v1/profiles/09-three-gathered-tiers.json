@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "garment_category": "dress",
+  "substrate_compatibility": "woven",
+  "silhouette": {
+    "overall_shape": "tiered_smock",
+    "ease_level": "oversized",
+    "garment_length": "midi"
+  },
+  "bodice_and_neckline": {
+    "neckline_type": "scoop",
+    "neckline_depth": "modest_mid",
+    "collar_type": "none",
+    "shaping_darts_seams": [
+      "gathers_yoke"
+    ],
+    "waist_definition": "empire_seam",
+    "back_detail": "unknown"
+  },
+  "sleeves_and_armscye": {
+    "armscye_construction": "dropped_shoulder",
+    "sleeve_style": "puff_gathered_hem",
+    "sleeve_length": "elbow",
+    "cuff_finish": "elastic_casing"
+  },
+  "skirt_and_hemline": {
+    "has_skirt_section": true,
+    "skirt_construction": "tiered_gathered",
+    "tier_count": 3,
+    "slit_detail": "none",
+    "hemline_shape": "straight_level",
+    "pockets": [
+      "none_visible"
+    ]
+  },
+  "closures_and_details": {
+    "primary_closure": "pullover_no_closure",
+    "finish_structure": "unknown"
+  },
+  "structural_nuance_notes": {
+    "bodice_neckline": "Scoop opening tops a short loose yoke.",
+    "sleeves_armscye": "Dropped shoulder blooms into an elastic elbow sleeve.",
+    "skirt_hemline": "Three gathered sections widen from the high join to the level hem.",
+    "overall_drape_and_proportions": "Loose upper body and ample progressively wider layers."
+  }
+}

@@ -15,5 +15,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     pool: 'vmThreads',
+    // Bound concurrent PGlite instances during the full release suite.
+    maxWorkers: 3,
   },
 });
