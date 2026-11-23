@@ -21,7 +21,7 @@
 
 ## Implementation checklist
 
-Eight of ten implementation tasks are complete on `feat/seamlens-v1`. Tasks 8 and 10 can start in parallel.
+Nine of ten implementation tasks are complete on `feat/seamlens-v1`. Task 10 is next.
 
 - [x] **1. Taxonomy and measurements** — Garment schema, canonical serializer and measurement parser (`2251d96`).
 - [x] **2. Scoring and explanations** — Regional scoring and match/difference chips (`792396a`).
@@ -30,11 +30,11 @@ Eight of ten implementation tasks are complete on `feat/seamlens-v1`. Tasks 8 an
 - [x] **5. Search engine** — Image normalization, rate limits, cached analysis and indexed hybrid ranking (`0a105e9`, `3bde4dd`).
 - [x] **6. Public search API** — Browser image preparation, analyze/refine routes and tracked maker redirects (`7e4a180`, `29c05ab`). Pass the prepared blob to `buildPreparedUploadForm` to preserve crop origin.
 - [x] **7. Catalog ingestion** — Approved Shopify and CSV imports, immutable media and reviewable drafts (`cd3ea3d`). Migration 004 provisions the default Supabase bucket.
-- [ ] **8. Public discovery frontend** — Build the upload dock and search results at `/` and `/search` using the Task 6 endpoints.
+- [x] **8. Public discovery frontend** — Upload, direct image URL and sample entry points at `/`, with part-focus, filters, technical flats and tracked maker links at `/search` (`4ac1660`).
 - [x] **9. Admin curation** — Allowlisted sign-in, maker and import controls, pattern review, re-embedding and telemetry (`71ccb3b`).
 - [ ] **10. Benchmark and release checks** — Implement the smoke benchmark, then exercise the integrated public and admin flows on staging.
 
-**Verification so far.** A fresh checkout passed the frozen install, typecheck, all 200 default tests and the production build. The preceding integration run also passed the opt-in native PostgreSQL contention test. Desktop and mobile Chrome checks used a local auth fixture and confirmed that maker suspension and restoration immediately affected search results and redirects. The 2,000-view local PGlite benchmark measured p95 at 4.14 ms for full silhouette and 3.12 ms for filtered bodice across 30 warmed calls per case.
+**Verification so far.** Task 8 passed the frozen install, typecheck and production build. The integrated suite passed 242 tests with native PostgreSQL enabled. The live Gemini test was skipped. Desktop and mobile Chrome exercised sample search, technical flats, focus refinement, maker redirect attribution, expired-session recovery and a cropped upload backed by a seeded analysis cache. Desktop and mobile Chrome checks used a local auth fixture and confirmed that maker suspension and restoration immediately affected search results and redirects. The 2,000-view local PGlite benchmark measured p95 at 4.14 ms for full silhouette and 3.12 ms for filtered bodice across 30 warmed calls per case.
 
 **Open staging checks.** Record live Gemini extraction, latency and spend for Task 4. Complete hosted Supabase Auth, Storage and release acceptance under Task 10.
 
@@ -441,7 +441,7 @@ git commit -m "feat(ingestion): add Shopify Straight/Curve grouping parser, metr
 - Produces:
   - Public landing & upload page (`/`) and interactive search workspace (`/search?q=[querySessionId]`)
 
-- [ ] **Step 1: Write failing component interaction tests for Upload Dock, Part-Focus, Filter Sliders, Flat Toggle & Session Recovery**
+- [x] **Step 1: Write failing component interaction tests for Upload Dock, Part-Focus, Filter Sliders, Flat Toggle & Session Recovery**
 
 Use `tests/ui/discovery-flow.test.tsx` in jsdom. Exercise the rendered components through their labeled controls.
 
@@ -450,23 +450,23 @@ Use `tests/ui/discovery-flow.test.tsx` in jsdom. Exercise the rendered component
 - Make two refinements and resolve the older request last. Only the latest choice can update the grid. For an expired session recover once from the retained upload, archetype slug or URL. Preserve the current filters and focus. If the original source is unavailable or recovery fails, offer a fresh upload.
 - Show the Dresses & Tops scope message for unsupported garments, upper-body focus choices when available, crop guidance for multiple garments, and actionable filter relaxation hints. At the daily cap a user can still start from an archetype.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bun run test tests/ui/discovery-flow.test.tsx`
 Expected: FAIL with missing components.
 
-- [ ] **Step 3: Implement Tactile Atelier styling and public discovery components (zero `mockups/` imports)**
+- [x] **Step 3: Implement Tactile Atelier styling and public discovery components (zero `mockups/` imports)**
 
 - In `src/app/globals.css` & `src/app/layout.tsx`: define clean Atelier CSS custom properties inspired by *Fold Atelier* and *Kripalani Tailors* (woven raw-linen ground `#E5E2DC`, warm drafting-paper card surface `#FAF8F4`, charcoal ink `#1D1E1C`, tailor's chalk & terracotta basting accents `#B84A32`, generous whitespace, `Fraunces` / `Instrument Serif` display + `Plus Jakarta Sans` body + `JetBrains Mono` measurement tags).
 - Implement `UploadDock` (drag-drop, mobile camera `accept="image/jpeg,image/png,image/webp,image/avif"`, URL input surfacing friendly screenshot hint on `HTML_PAGE_URL_UNSUPPORTED`, optional pre-search Part-Focus & crop box, one-click Curated Archetype cards; caches resized blob/dataUrl in client memory + `sessionStorage` keyed by `querySessionId`).
 - Implement `DiscoveryWorkspace`, `SewistFilterBar` (Woven/Knit pills, single-value *My Full Bust* `32"–64"+` and *My Full Hip* `32"–68"+` sliders with `Any` reset, Format & Skill multi-select pills), and `PatternMatchCard` (Cover ↔ Front/Back Technical Flat toggle with `<link rel="preload">` / hidden eager image warm-up, **Matched** sage chips, **Diff / Minor Hack** ochre chips, canonical + designer band sizing readout, direct `/go/[pattern_id]` CTA).
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bun run test tests/ui/discovery-flow.test.tsx`
 Expected: PASS.
 
-- [ ] **Step 5: Commit and submit for task review**
+- [x] **Step 5: Commit and submit for task review**
 
 ```bash
 git add src/app/globals.css src/app/layout.tsx src/app/page.tsx src/app/search src/components tests/ui
