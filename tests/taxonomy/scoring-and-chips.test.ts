@@ -108,6 +108,15 @@ const baseTop: ConstructionProfileV1 = {
 };
 
 describe('Deterministic regional structural scoring & chips', () => {
+  it('retains the substrate and closure weights for top silhouette scoring', () => {
+    const differentMaterialsAndClosure: ConstructionProfileV1 = {
+      ...baseTop,
+      substrate_compatibility: 'knit',
+      closures_and_details: { ...baseTop.closures_and_details, primary_closure: 'pullover_no_closure' },
+    };
+    expect(computeStructuralScore(baseTop, differentMaterialsAndClosure, 'full_silhouette')).toBeCloseTo(0.9);
+  });
+
   it('validates all test fixtures cleanly against ConstructionProfileV1Schema', () => {
     expect(ConstructionProfileV1Schema.safeParse(baseDress).success).toBe(true);
     expect(ConstructionProfileV1Schema.safeParse(variantSleevelessScoop).success).toBe(true);
@@ -204,8 +213,8 @@ describe('Deterministic regional structural scoring & chips', () => {
       ...baseTop,
       silhouette: { ...baseTop.silhouette, overall_shape: 'boxy_cropped' },
     };
-    // overall_shape is 0.20 out of 0.80 non-skirt weight => 0.25 penalty => 0.75
-    expect(computeStructuralScore(baseTop, boxyTop, 'full_silhouette')).toBeCloseTo(0.75, 5);
+    // The shape penalty scales with the geometry weights receiving the skirt share.
+    expect(computeStructuralScore(baseTop, boxyTop, 'full_silhouette')).toBeCloseTo(1 - 0.20 * (0.90 / 0.70), 5);
   });
 
   it('emits up to 4 Matched chips and up to 2 Diff/Minor Hack chips when totalScore >= 0.62', () => {

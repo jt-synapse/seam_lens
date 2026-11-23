@@ -5,7 +5,7 @@ import type {
 } from './construction-profile';
 
 const DEFAULT_HYBRID_ALPHA = 0.55;
-const TOP_NON_SKIRT_WEIGHT_SUM = 0.8;
+const TOP_GEOMETRY_WEIGHT_MULTIPLIER = 0.90 / 0.70;
 
 function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -51,7 +51,7 @@ function scoreFullSilhouette(
   query: ConstructionProfileV1,
   candidate: ConstructionProfileV1
 ): number {
-  const nonSkirtScore =
+  const geometryScore =
     0.2 * exactMatch(query.silhouette.overall_shape, candidate.silhouette.overall_shape) +
     0.14 *
       exactMatch(
@@ -82,7 +82,8 @@ function scoreFullSilhouette(
       exactMatch(
         query.sleeves_and_armscye.sleeve_length,
         candidate.sleeves_and_armscye.sleeve_length
-      ) +
+      );
+  const materialAndClosureScore =
     0.05 * substrateMatch(query.substrate_compatibility, candidate.substrate_compatibility) +
     0.05 *
       exactMatch(
@@ -91,7 +92,7 @@ function scoreFullSilhouette(
       );
 
   if (query.garment_category === 'top') {
-    return clamp01(nonSkirtScore / TOP_NON_SKIRT_WEIGHT_SUM);
+    return clamp01(geometryScore * TOP_GEOMETRY_WEIGHT_MULTIPLIER + materialAndClosureScore);
   }
 
   const sameSkirtPresence =
@@ -107,7 +108,7 @@ function scoreFullSilhouette(
       : 0) +
     0.04 * exactMatch(query.silhouette.garment_length, candidate.silhouette.garment_length);
 
-  return clamp01(nonSkirtScore + skirtScore);
+  return clamp01(geometryScore + materialAndClosureScore + skirtScore);
 }
 
 function scoreBodiceNeckline(
