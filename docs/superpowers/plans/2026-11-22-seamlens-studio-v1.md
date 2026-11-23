@@ -28,7 +28,9 @@
 | Task 4, implemented | Structured vision, regional embeddings and UTC budget reservations | Search and ingestion can use the interfaces. Live fixture acceptance awaits staging credentials. |
 | Task 5, implemented | Image analysis, session refinement, rate limits and hybrid ranking at `0a105e9` and `3bde4dd` | Local 2,000-view PGlite benchmark used HNSW. Over 30 warmed calls per case, p95 was 4.14 ms for full silhouette and 3.12 ms for filtered bodice. Staging timing belongs to Task 10. |
 | Task 7, implemented | Approved Shopify and CSV ingestion, gallery classification, immutable media and draft worker at `cd3ea3d` | Offline integration covered import, curation and public retrieval. The default Supabase bucket is provisioned by migration 004. Deployments with a custom media bucket supply it separately. |
-| Tasks 6, 8, 9 and 10 | 5 → 6 → 8 for public discovery. 5 + 7 → 9 for admin. 5 → 10 for benchmark logic. | Run the final browser, build and release checks after both public and admin surfaces are integrated. |
+| Task 6, implemented | Public search routes, browser image preparation and tracked redirects at `7e4a180`; crop-origin and session handling at `29c05ab` | Use `buildPreparedUploadForm` on the returned blob. Migration 007 preserves the distinction between an upright browser crop and an uncropped upload. |
+| Task 9, implemented | Admin access, curation, batch control and telemetry at `71ccb3b` | Desktop and mobile Chrome covered sign-in, editor navigation, maker suspension and restoration, public visibility, tracked redirects and sign-out against a local auth fixture and PostgreSQL 16. |
+| Tasks 8 and 10 | The public routes are ready for the discovery frontend. The benchmark harness can start in parallel. | Complete the hosted acceptance checks after public discovery is integrated. |
 
 Use the existing feature worktree and `bun.lock`. Run `bun install --frozen-lockfile` on a fresh checkout. Generate each Superpowers task brief from this revision immediately before dispatch and include Global Constraints. Parallel writers on independent tasks use separate worktrees. Give each diff to a reviewer and record the commit and verification in the feature worktree’s progress ledger. The coordinator owns shared migrations and integration order.
 
@@ -324,7 +326,7 @@ git commit -m "feat(search): add SSRF/EXIF-safe image ingest, IP rate limiter, a
   - `GET /go/[pattern_id]?band=&q=&v=&pos=&region=` (`302` redirect + async `outbound_clicks` insert)
   - `preprocessGarmentFileInBrowser(file: File, cropBox?: CropBox | null): Promise<{ blob: Blob; previewDataUrl: string }>`
 
-- [ ] **Step 1: Write failing tests for URL merging, archetype instant search, API routes, and `/go/[pattern_id]`**
+- [x] **Step 1: Write failing tests for URL merging, archetype instant search, API routes, and `/go/[pattern_id]`**
 
 In `tests/api/public-routes-and-redirect.test.ts` exercise exported handlers with real Request objects and injected dependencies.
 
@@ -333,24 +335,24 @@ In `tests/api/public-routes-and-redirect.test.ts` exercise exported handlers wit
 - Use a known asymmetric fixture. Cropping a browser upload once and cropping the equivalent URL image on the server select the same region. When the browser submits a cropped blob, omit crop coordinates from that request. Reject HEIC before upload. Keep multipart requests under the deployment body limit through client resizing and byte-limit checks. The direct fetch has its own 8 MiB stream limit. [Vercel function limits](https://vercel.com/docs/functions/limitations)
 - Select a Curve band and verify 302, the exact maker product URL, preservation of existing query parameters and fragment, and one attributed click after executing the queued callback. Foreign band/view IDs cannot change destination or attribution. An unpublished pattern or suspended maker returns 404. Accept only validated HTTP(S) maker destinations and keep redirects uncached so a takedown takes effect on the next click.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bun run test tests/api/public-routes-and-redirect.test.ts`
 Expected: FAIL with missing route/catalog files.
 
-- [ ] **Step 3: Implement `outbound-url.ts`, `archetypes-repo.ts`, Route Handlers, and `client-canvas-preprocess.ts`**
+- [x] **Step 3: Implement `outbound-url.ts`, `archetypes-repo.ts`, Route Handlers, and `client-canvas-preprocess.ts`**
 
 - Implement `buildTrackedDestinationUrl` using `new URL(productUrl)` and `URLSearchParams(affiliateQueryParam)` so existing query strings and `#hash` fragments never break.
 - Implement `POST /api/v1/search/analyze` (`export const runtime = 'nodejs'; export const maxDuration = 30;`) enforcing `10/min` and `40/hr` IP rate limits on live Vision requests (exempting `archetypeSlug` from Vision rate/budget gates, using the `120/min` query bucket instead), and `POST /api/v1/search/query` enforcing `120/min`.
 - Implement `GET /go/[pattern_id]/route.ts` (`status = 'published'` AND `vetted_status = 'approved'`), resolving `?band=` against `pattern_size_bands` (`pattern_id = $1`, fallback `is_default = true`), scheduling `INSERT INTO outbound_clicks` via `after()` from `next/server` (inject a callback scheduler in tests), and returning `NextResponse.redirect(destinationUrl, 302)`.
 - Implement `preprocessGarmentFileInBrowser` rejecting `.heic`/`.heif` with a clear prompt to upload JPEG/PNG/WebP/screenshot, drawing via `createImageBitmap` (`imageOrientation: 'from-image'`) onto `<canvas>` (`<=1280px`), and exporting `image/webp` at `0.82`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bun run test tests/api/public-routes-and-redirect.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit and submit for task review**
+- [x] **Step 5: Commit and submit for task review**
 
 ```bash
 git add src/modules/catalog src/modules/search/client-canvas-preprocess.ts src/app/api/v1 src/app/go tests/api
@@ -494,7 +496,7 @@ git commit -m "feat(ui): build Tactile Atelier upload dock, part-focus workspace
   - `mergeSizeBandIntoPattern(db: Queryable, sourcePatternId: string, targetPatternId: string, bandLabel: string): Promise<void>`
   - `getTelemetrySummary(db: Queryable, windowDays: 7 | 30): Promise<TelemetrySummary>`
 
-- [ ] **Step 1: Write failing tests for Admin allowlist guard, Save & Re-Embed sync, maker suspension cascade, and CTR telemetry**
+- [x] **Step 1: Write failing tests for Admin allowlist guard, Save & Re-Embed sync, maker suspension cascade, and CTR telemetry**
 
 Use `tests/admin/curation-and-auth.test.ts` to drive the protected actions and chunk handler as well as the page guard.
 
@@ -503,24 +505,24 @@ Use `tests/admin/curation-and-auth.test.ts` to drive the protected actions and c
 - Merge a duplicate draft within the same maker and verify two bands on the target. Reject cross-maker merges and preserve referenced audit rows. Publish, unpublish, suspend and takedown are immediately reflected in search and redirect checks.
 - Verify that the queue includes incomplete imports, an admin can fill missing band bounds, and a failed item can be retried without creating a second item. Supply known search/click fixtures over 7 and 30 days and assert exact counts, per-maker clicks, latency percentiles, daily spend, CTR and a zero-search denominator.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `bun run test tests/admin/curation-and-auth.test.ts`
 Expected: FAIL with missing `@/modules/admin/*` modules.
 
-- [ ] **Step 3: Implement `auth.ts`, `curation-actions.ts`, `telemetry-repo.ts`, `middleware.ts`, and `/admin/*` screens**
+- [x] **Step 3: Implement `auth.ts`, `curation-actions.ts`, `telemetry-repo.ts`, `middleware.ts`, and `/admin/*` screens**
 
 - Implement `requireAdminUser` in Node.js server actions and handlers, checking the verified Supabase user + `SELECT user_id, email, role FROM admin_users WHERE user_id = $1`, and implement a runtime-compatible session gate in `src/middleware.ts` guarding `/admin/:path*` (except `/admin/login`) and `/api/admin/:path*`.
 - Implement `savePatternViewCuration` validating `ConstructionProfileV1Schema`, running `serializeCanonicalRegions` + `TextEmbedder.embedRegions(..., 'RETRIEVAL_DOCUMENT')`, updating `pattern_views` (`human_verified = true`, `verified_by`, `verified_at`), and upserting `pattern_size_bands` + `patterns` inside `withTransaction`.
 - Perform the verified-user and allowlist check at every write entry point before using service credentials. Keep pg and storage-service imports out of Edge middleware. Use email/password for the v1 admin login. Load raw source fields and missing measurements from the import item for the editor. Wire per-item retry and same-maker band merge controls. Compare the saved revision during the transaction to prevent a slow embed response from overwriting a newer edit.
 - Build `/admin/login`, `/admin/makers` (opt-in permission note + UTM/affiliate + approve/suspend), `/admin/imports` (CSV upload + Shopify URL trigger polling `POST /api/admin/ingestion/process-chunk` (`maxDuration = 60`)), `/admin/patterns` (queue flagging `ai_confidence < 0.80` or missing bust/hip), `/admin/patterns/[id]` (split-view zoomable Technical Flat + Styled Photo vs. structured tag & multi-band size editor + Publish/Unpublish/Takedown), and `/admin/telemetry`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `bun run test tests/admin/curation-and-auth.test.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit and submit for task review**
+- [x] **Step 5: Commit and submit for task review**
 
 ```bash
 git add src/modules/admin src/middleware.ts src/app/admin src/app/api/admin tests/admin
